@@ -20,8 +20,9 @@ app.post('/api/register', async (req, res) => {
   if (users.find(u => u.username === username)) return res.status(400).json({ error: 'User exists' });
 
   const hashed = await bcrypt.hash(password, 10);
-  users.push({ id: uuidv4(), username, password: hashed });
-  res.json({ success: true });
+  const newUser = { id: uuidv4(), username, password: hashed };
+  users.push(newUser);
+  res.json({ success: true, userId: newUser.id });
 });
 
 // Login
