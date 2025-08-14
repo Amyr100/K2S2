@@ -16,8 +16,16 @@ async function register() {
     body: JSON.stringify({ username, password })
   });
   const data = await res.json();
-  alert(data.success ? 'Registered!' : data.error);
-  if (data.success) closeModal('registerModal');
+  if (data.success) {
+    // Сразу логиним пользователя
+    currentUser = { userId: data.userId || null, username };
+    document.getElementById('postSection').classList.remove('hidden');
+    loadPosts();
+    closeModal('registerModal');
+    alert('Registered and logged in!');
+  } else {
+    alert(data.error);
+  }
 }
 
 async function login() {
