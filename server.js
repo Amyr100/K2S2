@@ -12,6 +12,14 @@ app.use(express.static('public'));
 // In-memory storage
 let users = [];
 let posts = [];
+users = [
+  {
+    id: 'uuid',
+    username: 'Vlad',
+    password: 'hashed',
+    subscriptions: ['uuid1', 'uuid2'] // Идентификаторы пользователей, на которых подписан
+  }
+]
 
 // Register
 app.post('/api/register', async (req, res) => {
@@ -45,11 +53,27 @@ app.post('/api/posts', (req, res) => {
 
 // subscribe
 app.post('/api/subscribe', (req, res) => {
+  const { userId, targetId } = req.body; // userId - кто подписывается, targetId - на кого
+  const user = users.find(u => u.id === userId);
+  if (!user) return res.status(400).json({ error: 'User not found' });
+
+  if (!user.subscriptions) user.subscriptions = [];
+  if (!user.subscriptions.includes(targetId)) user.subscriptions.push(targetId);
+
+  res.json({ success: true });
+});
+
+// unsubscribe
+
+app.post('/api/unsubscribe', (req, res) => {
   const { userId, targetId } = req.body;
   const user = users.find(u => u.id === userId);
   if (!user) return res.status(400).json({ error: 'User not found' });
-  if (!user.subscriptions) user.subscriptions = [];
-  if (!user.subscriptions.includes(targetId)) user.subscriptions.push(targetId);
+
+  if (user.subscriptions) {
+    user.subscriptions = user.subscriptions.filter(id => id !== targetId);
+  }
+
   res.json({ success: true });
 });
 
