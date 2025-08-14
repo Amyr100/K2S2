@@ -43,6 +43,16 @@ app.post('/api/posts', (req, res) => {
   res.json({ success: true });
 });
 
+// subscribe
+app.post('/api/subscribe', (req, res) => {
+  const { userId, targetId } = req.body;
+  const user = users.find(u => u.id === userId);
+  if (!user) return res.status(400).json({ error: 'User not found' });
+  if (!user.subscriptions) user.subscriptions = [];
+  if (!user.subscriptions.includes(targetId)) user.subscriptions.push(targetId);
+  res.json({ success: true });
+});
+
 // Get all posts
 app.get('/api/posts', (req, res) => {
   res.json(posts);
