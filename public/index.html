@@ -1,0 +1,39 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Neon Dark Blog</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body class="bg-gray-900 text-white min-h-screen flex flex-col items-center p-6 font-sans">
+  <h1 class="text-5xl font-bold mb-8 text-purple-400 glow">Neon Dark Blog</h1>
+
+  <div class="bg-gray-800 p-6 rounded-3xl shadow-xl w-full max-w-md mb-6">
+    <h2 class="text-2xl mb-4">Register</h2>
+    <input id="regUser" class="input" placeholder="Username">
+    <input id="regPass" type="password" class="input mt-2" placeholder="Password">
+    <button onclick="register()" class="btn mt-4">Sign Up</button>
+  </div>
+
+  <div class="bg-gray-800 p-6 rounded-3xl shadow-xl w-full max-w-md mb-6">
+    <h2 class="text-2xl mb-4">Login</h2>
+    <input id="logUser" class="input" placeholder="Username">
+    <input id="logPass" type="password" class="input mt-2" placeholder="Password">
+    <button onclick="login()" class="btn mt-4">Sign In</button>
+  </div>
+
+  <div id="postSection" class="hidden bg-gray-800 p-6 rounded-3xl shadow-xl w-full max-w-md mb-6">
+    <h2 class="text-2xl mb-4">New Post</h2>
+    <input id="postTitle" class="input" placeholder="Post title">
+    <textarea id="postContent" class="input mt-2" placeholder="Post content"></textarea>
+    <input id="postTags" class="input mt-2" placeholder="Tags (comma separated)">
+    <button onclick="createPost()" class="btn mt-4">Publish</button>
+  </div>
+
+  <div id="posts" class="w-full max-w-2xl mt-6"></div>
+
+  <script src="app.js"></script>
+</body>
+</html>
