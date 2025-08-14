@@ -1,0 +1,45 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Блог (Node/Express)</title>
+  <link rel="stylesheet" href="style.css"/>
+</head>
+<body>
+  <div class="container">
+    <h1>Учебный блог (Node/Express + SQLite)</h1>
+    <div id="auth">
+      <input id="username" placeholder="Логин"/>
+      <input id="password" type="password" placeholder="Пароль"/>
+      <button id="loginBtn">Войти</button>
+      <button id="regBtn">Регистрация</button>
+      <span id="me"></span>
+      <button id="logoutBtn" style="display:none">Выйти</button>
+    </div>
+    <hr/>
+    <div id="panel" style="display:none">
+      <h2>Новый пост</h2>
+      <input id="title" placeholder="Заголовок"/>
+      <textarea id="content" placeholder="Текст..."></textarea>
+      <select id="visibility">
+        <option value="public">Публичный</option>
+        <option value="request">По запросу</option>
+      </select>
+      <input id="tags" placeholder="Теги через запятую (news, travel)"/>
+      <button id="createPost">Опубликовать</button>
+      <h2>Лента (подписки)</h2>
+      <div id="feed"></div>
+      <h2>Публичные</h2>
+      <div id="public"></div>
+      <h2>Мои посты</h2>
+      <div id="mine"></div>
+      <h2>Пользователи</h2>
+      <div id="users"></div>
+      <h2>Запросы на доступ</h2>
+      <div id="requests"></div>
+    </div>
+  </div>
+  <script src="script.js"></script>
+</body>
+</html>
