@@ -1,12 +1,58 @@
-.input {
-  @apply w-full p-3 rounded-xl bg-gray-700 text-white outline-none;
+:root {
+  --neon: #8b5cf6;
+  --neon2: #38bdf8;
 }
+.neon-text {
+  color: var(--neon);
+  text-shadow: 0 0 12px rgba(139,92,246,.65), 0 0 24px rgba(139,92,246,.35);
+}
+.card {
+  @apply bg-[#12121C] rounded-2xl p-5 shadow-xl;
+  box-shadow: 0 10px 30px rgba(0,0,0,.35), 0 0 0 1px rgba(139,92,246,.08) inset;
+}
+.section-title { @apply text-xl font-bold mb-3 text-gray-100; }
+
 .btn {
-  @apply bg-purple-500 hover:bg-purple-600 text-white font-bold py-3 px-4 rounded-xl transition-all duration-300;
+  @apply px-4 py-2 rounded-2xl font-semibold bg-gradient-to-tr from-violet-600 to-fuchsia-600 hover:from-violet-500 hover:to-fuchsia-500 transition;
+  box-shadow: 0 8px 24px rgba(139,92,246,.35);
 }
-.glow {
-  text-shadow: 0 0 8px #9f7aea, 0 0 16px #6b21a8;
+.btn-secondary {
+  @apply px-4 py-2 rounded-2xl font-semibold bg-[#171725] hover:bg-[#1E1E2E] transition;
+  box-shadow: 0 8px 24px rgba(56,189,248,.2);
 }
+.icon-btn { @apply text-gray-400 hover:text-gray-200; }
+
+.input {
+  @apply w-full px-4 py-3 rounded-2xl bg-[#0F0F18] outline-none border border-transparent text-gray-100 placeholder:text-gray-500;
+  box-shadow: 0 0 0 1px rgba(139,92,246,.15) inset;
+}
+.input:focus {
+  box-shadow: 0 0 0 2px rgba(139,92,246,.45), 0 0 24px rgba(139,92,246,.25);
+}
+.textarea { @apply input; }
+.select { @apply input pr-8; }
+
+.tag {
+  @apply text-xs px-2 py-1 rounded-full bg-[#1C1C2A] text-gray-300;
+  box-shadow: 0 0 0 1px rgba(139,92,246,.15) inset;
+}
+
+.post {
+  @apply card mb-4 transition-transform;
+}
+.post:hover { transform: translateY(-2px); }
+
 .modal {
-  z-index: 50;
+  @apply fixed inset-0 bg-black/60 backdrop-blur flex items-center justify-center p-4 z-50;
 }
+.modal-card {
+  @apply bg-[#12121C] rounded-2xl p-6 w-full max-w-md;
+  box-shadow: 0 10px 40px rgba(0,0,0,.5), 0 0 0 1px rgba(139,92,246,.12) inset;
+}
+.modal-header { @apply flex items-center justify-between mb-4; }
+
+.tab {
+  @apply px-4 py-2 rounded-2xl bg-[#141421] text-gray-200 hover:bg-[#1A1A2A] transition;
+}
+.link { @apply text-sky-400 hover:underline; }
+.hidden { display: none; }

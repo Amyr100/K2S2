@@ -1,52 +1,109 @@
-<!DOCTYPE html>
-<html lang="en">
+<!doctype html>
+<html lang="ru">
 <head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Neon Dark Blog</title>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Блог — тёмная тема</title>
   <script src="https://cdn.tailwindcss.com"></script>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;800&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="style.css">
 </head>
-<body class="bg-gray-900 text-white min-h-screen flex flex-col items-center p-6 font-sans">
-  <h1 class="text-5xl font-bold mb-8 text-purple-400 glow">Neon Dark Blog</h1>
+<body class="bg-[#0B0B13] text-gray-100 min-h-screen font-[Inter]">
+  <div class="max-w-5xl mx-auto px-4 py-6">
+    <header class="flex items-center justify-between mb-6">
+      <h1 class="text-2xl md:text-3xl font-extrabold tracking-tight">
+        <span class="neon-text">DarkBlog</span> <span class="text-gray-400 text-base md:text-lg">— учебное приложение</span>
+      </h1>
+      <div id="authArea" class="space-x-2">
+        <button class="btn" onclick="openModal('loginModal')">Вход</button>
+        <button class="btn-secondary" onclick="openModal('registerModal')">Регистрация</button>
+      </div>
+      <div id="userArea" class="hidden items-center space-x-3">
+        <span id="helloUser" class="text-sm text-gray-300"></span>
+        <button class="btn" onclick="logout()">Выйти</button>
+      </div>
+    </header>
 
-  <div class="flex space-x-4 mb-6">
-    <button onclick="openModal('registerModal')" class="btn">Register</button>
-    <button onclick="openModal('loginModal')" class="btn">Login</button>
-  </div>
+    <nav id="navTabs" class="hidden mb-5 flex flex-wrap gap-2">
+      <button class="tab" data-tab="public" onclick="switchTab('public')">Публичные</button>
+      <button class="tab" data-tab="feed" onclick="switchTab('feed')">Лента</button>
+      <button class="tab" data-tab="myposts" onclick="switchTab('myposts')">Мои посты</button>
+      <button class="tab" data-tab="users" onclick="switchTab('users')">Пользователи</button>
+      <button class="tab" data-tab="requests" onclick="switchTab('requests')">Запросы</button>
+    </nav>
 
-  <!-- Registration Modal -->
-  <div id="registerModal" class="modal hidden fixed inset-0 bg-black bg-opacity-70 flex justify-center items-center">
-    <div class="bg-gray-800 p-6 rounded-3xl shadow-xl w-full max-w-md relative">
-      <button onclick="closeModal('registerModal')" class="absolute top-4 right-4 text-white text-xl">&times;</button>
-      <h2 class="text-2xl mb-4">Register</h2>
-      <input id="regUser" class="input" placeholder="Username">
-      <input id="regPass" type="password" class="input mt-2" placeholder="Password">
-      <button onclick="register()" class="btn mt-4 w-full">Sign Up</button>
-    </div>
+    <!-- Create Post -->
+    <section id="postSection" class="hidden mb-8">
+      <h2 class="section-title">Создать пост</h2>
+      <div class="card space-y-4">
+        <input id="postTitle" class="input" placeholder="Заголовок">
+        <textarea id="postContent" class="textarea" rows="5" placeholder="Текст поста..."></textarea>
+        <input id="postTags" class="input" placeholder="Теги через запятую (например: js, tailwind)">
+        <div class="flex flex-wrap gap-3 items-center">
+          <label class="text-sm text-gray-300">Видимость:</label>
+          <select id="postVisibility" class="select">
+            <option value="public">Публичный</option>
+            <option value="request">Только по запросу</option>
+          </select>
+          <button class="btn" onclick="createPost()">Опубликовать</button>
+        </div>
+      </div>
+    </section>
+
+    <!-- Filters -->
+    <section id="filters" class="hidden mb-6">
+      <div class="card flex flex-col md:flex-row gap-3 md:items-center">
+        <input id="filterTag" class="input" placeholder="Фильтр по тегу (точное совпадение)">
+        <select id="sortMode" class="select">
+          <option value="date_desc">Сначала новые</option>
+          <option value="date_asc">Сначала старые</option>
+          <option value="title_asc">Заголовок A→Я</option>
+          <option value="title_desc">Заголовок Я→A</option>
+        </select>
+        <button class="btn" onclick="reloadActive()">Применить</button>
+      </div>
+    </section>
+
+    <!-- Lists -->
+    <section id="listPublic" class="hidden"></section>
+    <section id="listFeed" class="hidden"></section>
+    <section id="listMyPosts" class="hidden"></section>
+    <section id="listUsers" class="hidden"></section>
+    <section id="listRequests" class="hidden"></section>
   </div>
 
   <!-- Login Modal -->
-  <div id="loginModal" class="modal hidden fixed inset-0 bg-black bg-opacity-70 flex justify-center items-center">
-    <div class="bg-gray-800 p-6 rounded-3xl shadow-xl w-full max-w-md relative">
-      <button onclick="closeModal('loginModal')" class="absolute top-4 right-4 text-white text-xl">&times;</button>
-      <h2 class="text-2xl mb-4">Login</h2>
-      <input id="logUser" class="input" placeholder="Username">
-      <input id="logPass" type="password" class="input mt-2" placeholder="Password">
-      <button onclick="login()" class="btn mt-4 w-full">Sign In</button>
+  <div id="loginModal" class="modal hidden">
+    <div class="modal-card">
+      <div class="modal-header">
+        <h3 class="text-xl font-bold">Вход</h3>
+        <button class="icon-btn" onclick="closeModal('loginModal')">✕</button>
+      </div>
+      <div class="space-y-3">
+        <input id="loginUser" class="input" placeholder="Логин (напр. alice)">
+        <input id="loginPass" class="input" type="password" placeholder="Пароль (напр. alice)">
+        <button class="btn w-full" onclick="login()">Войти</button>
+        <p class="text-sm text-gray-400">Нет аккаунта? <a href="#" class="link" onclick="closeModal('loginModal'); openModal('registerModal')">Зарегистрироваться</a></p>
+      </div>
     </div>
   </div>
 
-  <!-- Post Section -->
-  <div id="postSection" class="hidden bg-gray-800 p-6 rounded-3xl shadow-xl w-full max-w-md mb-6">
-    <h2 class="text-2xl mb-4">New Post</h2>
-    <input id="postTitle" class="input" placeholder="Post title">
-    <textarea id="postContent" class="input mt-2" placeholder="Post content"></textarea>
-    <input id="postTags" class="input mt-2" placeholder="Tags (comma separated)">
-    <button onclick="createPost()" class="btn mt-4">Publish</button>
+  <!-- Register Modal -->
+  <div id="registerModal" class="modal hidden">
+    <div class="modal-card">
+      <div class="modal-header">
+        <h3 class="text-xl font-bold">Регистрация</h3>
+        <button class="icon-btn" onclick="closeModal('registerModal')">✕</button>
+      </div>
+      <div class="space-y-3">
+        <input id="regUser" class="input" placeholder="Логин">
+        <input id="regPass" class="input" type="password" placeholder="Пароль">
+        <button class="btn w-full" onclick="register()">Зарегистрироваться</button>
+      </div>
+    </div>
   </div>
-
-  <div id="posts" class="w-full max-w-2xl mt-6"></div>
 
   <script src="app.js"></script>
 </body>
