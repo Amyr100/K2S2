@@ -10,20 +10,34 @@
 <body class="bg-gray-900 text-white min-h-screen flex flex-col items-center p-6 font-sans">
   <h1 class="text-5xl font-bold mb-8 text-purple-400 glow">Neon Dark Blog</h1>
 
-  <div class="bg-gray-800 p-6 rounded-3xl shadow-xl w-full max-w-md mb-6">
-    <h2 class="text-2xl mb-4">Register</h2>
-    <input id="regUser" class="input" placeholder="Username">
-    <input id="regPass" type="password" class="input mt-2" placeholder="Password">
-    <button onclick="register()" class="btn mt-4">Sign Up</button>
+  <div class="flex space-x-4 mb-6">
+    <button onclick="openModal('registerModal')" class="btn">Register</button>
+    <button onclick="openModal('loginModal')" class="btn">Login</button>
   </div>
 
-  <div class="bg-gray-800 p-6 rounded-3xl shadow-xl w-full max-w-md mb-6">
-    <h2 class="text-2xl mb-4">Login</h2>
-    <input id="logUser" class="input" placeholder="Username">
-    <input id="logPass" type="password" class="input mt-2" placeholder="Password">
-    <button onclick="login()" class="btn mt-4">Sign In</button>
+  <!-- Registration Modal -->
+  <div id="registerModal" class="modal hidden fixed inset-0 bg-black bg-opacity-70 flex justify-center items-center">
+    <div class="bg-gray-800 p-6 rounded-3xl shadow-xl w-full max-w-md relative">
+      <button onclick="closeModal('registerModal')" class="absolute top-4 right-4 text-white text-xl">&times;</button>
+      <h2 class="text-2xl mb-4">Register</h2>
+      <input id="regUser" class="input" placeholder="Username">
+      <input id="regPass" type="password" class="input mt-2" placeholder="Password">
+      <button onclick="register()" class="btn mt-4 w-full">Sign Up</button>
+    </div>
   </div>
 
+  <!-- Login Modal -->
+  <div id="loginModal" class="modal hidden fixed inset-0 bg-black bg-opacity-70 flex justify-center items-center">
+    <div class="bg-gray-800 p-6 rounded-3xl shadow-xl w-full max-w-md relative">
+      <button onclick="closeModal('loginModal')" class="absolute top-4 right-4 text-white text-xl">&times;</button>
+      <h2 class="text-2xl mb-4">Login</h2>
+      <input id="logUser" class="input" placeholder="Username">
+      <input id="logPass" type="password" class="input mt-2" placeholder="Password">
+      <button onclick="login()" class="btn mt-4 w-full">Sign In</button>
+    </div>
+  </div>
+
+  <!-- Post Section -->
   <div id="postSection" class="hidden bg-gray-800 p-6 rounded-3xl shadow-xl w-full max-w-md mb-6">
     <h2 class="text-2xl mb-4">New Post</h2>
     <input id="postTitle" class="input" placeholder="Post title">

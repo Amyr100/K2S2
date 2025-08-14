@@ -1,5 +1,12 @@
 let currentUser = null;
 
+function openModal(id) {
+  document.getElementById(id).classList.remove('hidden');
+}
+function closeModal(id) {
+  document.getElementById(id).classList.add('hidden');
+}
+
 async function register() {
   const username = document.getElementById('regUser').value;
   const password = document.getElementById('regPass').value;
@@ -10,6 +17,7 @@ async function register() {
   });
   const data = await res.json();
   alert(data.success ? 'Registered!' : data.error);
+  if (data.success) closeModal('registerModal');
 }
 
 async function login() {
@@ -23,6 +31,7 @@ async function login() {
   const data = await res.json();
   if (data.success) {
     currentUser = data;
+    closeModal('loginModal');
     document.getElementById('postSection').classList.remove('hidden');
     loadPosts();
   } else {
@@ -40,9 +49,7 @@ async function createPost() {
     body: JSON.stringify({ userId: currentUser.userId, title, content, tags })
   });
   const data = await res.json();
-  if (data.success) {
-    loadPosts();
-  }
+  if (data.success) loadPosts();
 }
 
 async function loadPosts() {
