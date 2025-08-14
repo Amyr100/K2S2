@@ -1,281 +1,301 @@
+
 import express from 'express';
-import cors from 'cors';
 import fs from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
-import { v4 as uuidv4 } from 'uuid';
 import bcrypt from 'bcryptjs';
+import { v4 as uuidv4 } from 'uuid';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
 const app = express();
-app.use(cors());
 app.use(express.json({ limit: '1mb' }));
+app.use(express.urlencoded({ extended: true }));
+
+import cors from 'cors';
+app.use(cors());
 
 const DATA_FILE = path.join(__dirname, 'data.json');
-
-let db = {
-  users: [],
-  posts: [],
-};
+let data = { users: [], posts: [], accessRequests: [] };
 
 function loadData() {
-  if (fs.existsSync(DATA_FILE)) {
-    try {
-      const raw = fs.readFileSync(DATA_FILE, 'utf-8');
-      db = JSON.parse(raw);
-      if (!db.users) db.users = [];
-      if (!db.posts) db.posts = [];
-    } catch (e) {
-      console.error('Failed to read data.json, starting fresh', e);
-      db = { users: [], posts: [] };
+  try {
+    if (fs.existsSync(DATA_FILE)) {
+      data = JSON.parse(fs.readFileSync(DATA_FILE, 'utf-8'));
+      data.users = data.users || [];
+      data.posts = data.posts || [];
+      data.accessRequests = data.accessRequests || [];
+      for (const u of data.users) { u.subscriptions = u.subscriptions || []; }
+      for (const p of data.posts) {
+        p.tags = p.tags || [];
+        p.allowedUsers = p.allowedUsers || [];
+        p.comments = p.comments || [];
+      }
+    } else {
+      saveData();
     }
-  }
+  } catch (e) { console.error('Failed to load data.json', e); }
 }
-function saveData() {
-  fs.writeFileSync(DATA_FILE, JSON.stringify(db, null, 2));
-}
-
-function publicUser(u) {
-  return { id: u.id, username: u.username, subscriptions: u.subscriptions || [] };
-}
-
-function canViewPost(post, viewerId) {
-  if (post.visibility === 'public') return true;
-  if (!viewerId) return false;
-  if (post.userId === viewerId) return true;
-  // request-only: allowedUsers contains viewerId
-  return (post.allowedUsers || []).includes(viewerId);
-}
-
+function saveData() { fs.writeFileSync(DATA_FILE, JSON.stringify(data, null, 2)); }
 loadData();
 
-// Seed some demo users/posts if empty
-if (db.users.length === 0) {
-  const seed = async () => {
-    const aliceId = uuidv4();
-    const bobId = uuidv4();
-    const carolId = uuidv4();
-    db.users.push(
-      { id: aliceId, username: 'alice', passwordHash: await bcrypt.hash('alice', 10), subscriptions: [bobId] },
-      { id: bobId, username: 'bob', passwordHash: await bcrypt.hash('bob', 10), subscriptions: [] },
-      { id: carolId, username: 'carol', passwordHash: await bcrypt.hash('carol', 10), subscriptions: [] },
-    );
-    const now = new Date().toISOString();
-    db.posts.push(
-      { id: uuidv4(), userId: bobId, title: 'Welcome to the blog', content: 'This is a public post by Bob. 🎉',
-        tags: ['intro','public'], visibility: 'public', allowedUsers: [], pendingRequests: [], createdAt: now, updatedAt: now },
-      { id: uuidv4(), userId: bobId, title: 'Hidden gems', content: 'This is a request-only post by Bob. Ask for access. 🔒',
-        tags: ['hidden','gems'], visibility: 'request', allowedUsers: [aliceId], pendingRequests: [], createdAt: now, updatedAt: now },
-    );
-    saveData();
-  };
-  await seed();
+const sessions = new Map(); // token -> userId
+function requireAuth(req, res, next) {
+  const auth = req.headers['authorization'];
+  if (!auth || !auth.startsWith('Bearer ')) return res.status(401).json({ error: 'Unauthorized' });
+  const token = auth.slice('Bearer '.length);
+  const userId = sessions.get(token);
+  if (!userId) return res.status(401).json({ error: 'Unauthorized' });
+  const user = data.users.find(u => u.id === userId);
+  if (!user) return res.status(401).json({ error: 'Unauthorized' });
+  req.user = user;
+  next();
 }
 
-// Static frontend
 app.use(express.static(path.join(__dirname, 'public')));
 
-// ---------- Auth ----------
+// Auth
 app.post('/api/register', async (req, res) => {
-  const { username, password } = req.body || {};
+  const { username, password } = req.body;
   if (!username || !password) return res.status(400).json({ error: 'Missing fields' });
-  if (db.users.find(u => u.username.toLowerCase() === username.toLowerCase()))
-    return res.status(400).json({ error: 'User exists' });
+  if (data.users.find(u => u.username === username)) return res.status(400).json({ error: 'User exists' });
   const passwordHash = await bcrypt.hash(password, 10);
-  const newUser = { id: uuidv4(), username, passwordHash, subscriptions: [] };
-  db.users.push(newUser);
+  const user = { id: uuidv4(), username, passwordHash, subscriptions: [] };
+  data.users.push(user);
   saveData();
-  res.json({ success: true, user: publicUser(newUser) });
+  const token = uuidv4();
+  sessions.set(token, user.id);
+  res.json({ success: true, token, user: { id: user.id, username: user.username, subscriptions: user.subscriptions } });
 });
 
 app.post('/api/login', async (req, res) => {
-  const { username, password } = req.body || {};
-  const user = db.users.find(u => u.username.toLowerCase() === (username||'').toLowerCase());
+  const { username, password } = req.body;
+  const user = data.users.find(u => u.username === username);
   if (!user) return res.status(400).json({ error: 'Invalid credentials' });
-  const ok = await bcrypt.compare(password || '', user.passwordHash);
+  const ok = await bcrypt.compare(password, user.passwordHash);
   if (!ok) return res.status(400).json({ error: 'Invalid credentials' });
-  res.json({ success: true, user: publicUser(user) });
+  const token = uuidv4();
+  sessions.set(token, user.id);
+  res.json({ success: true, token, user: { id: user.id, username: user.username, subscriptions: user.subscriptions } });
 });
 
+app.post('/api/logout', requireAuth, (req, res) => {
+  const token = req.headers['authorization'].slice('Bearer '.length);
+  sessions.delete(token);
+  res.json({ success: true });
+});
+
+// Users
 app.get('/api/users', (req, res) => {
-  res.json(db.users.map(publicUser));
+  res.json(data.users.map(u => ({ id: u.id, username: u.username })));
 });
 
-// ---------- Subscriptions ----------
-app.post('/api/subscribe', (req, res) => {
-  const { userId, targetId } = req.body || {};
-  const user = db.users.find(u => u.id === userId);
-  const target = db.users.find(u => u.id === targetId);
-  if (!user || !target) return res.status(400).json({ error: 'User not found' });
-  user.subscriptions = user.subscriptions || [];
-  if (!user.subscriptions.includes(targetId)) user.subscriptions.push(targetId);
-  saveData();
-  res.json({ success: true, subscriptions: user.subscriptions });
-});
-
-app.post('/api/unsubscribe', (req, res) => {
-  const { userId, targetId } = req.body || {};
-  const user = db.users.find(u => u.id === userId);
-  if (!user) return res.status(400).json({ error: 'User not found' });
-  user.subscriptions = (user.subscriptions || []).filter(id => id !== targetId);
-  saveData();
-  res.json({ success: true, subscriptions: user.subscriptions });
-});
-
-app.get('/api/feed/:userId', (req, res) => {
-  const { userId } = req.params;
-  const user = db.users.find(u => u.id === userId);
-  if (!user) return res.status(400).json({ error: 'User not found' });
-  const subs = user.subscriptions || [];
-  const list = db.posts
-    .filter(p => subs.includes(p.userId) && canViewPost(p, userId))
-    .sort((a,b)=> new Date(b.createdAt) - new Date(a.createdAt));
-  res.json(list);
-});
-
-// ---------- Posts ----------
-app.get('/api/posts/public', (req, res) => {
-  const qTag = (req.query.tag || '').toString().trim().toLowerCase();
-  let list = db.posts.filter(p => p.visibility === 'public');
-  if (qTag) list = list.filter(p => (p.tags||[]).some(t => t.toLowerCase() === qTag));
-  list = list.sort((a,b)=> new Date(b.createdAt) - new Date(a.createdAt));
-  res.json(list);
-});
-
-app.get('/api/posts/visible/:viewerId?', (req, res) => {
-  const viewerId = req.params.viewerId || null;
-  const qTag = (req.query.tag || '').toString().trim().toLowerCase();
-  let list = db.posts.filter(p => canViewPost(p, viewerId));
-  if (qTag) list = list.filter(p => (p.tags||[]).some(t => t.toLowerCase() === qTag));
-  list = list.sort((a,b)=> new Date(b.createdAt) - new Date(a.createdAt));
-  res.json(list);
-});
-
-app.post('/api/posts', (req, res) => {
-  const { userId, title, content, tags, visibility } = req.body || {};
-  const user = db.users.find(u => u.id === userId);
-  if (!user) return res.status(400).json({ error: 'User not found' });
+// Posts CRUD
+app.post('/api/posts', requireAuth, (req, res) => {
+  const { title, content, tags = [], visibility = 'public' } = req.body;
   if (!title || !content) return res.status(400).json({ error: 'Missing fields' });
-  const now = new Date().toISOString();
   const post = {
     id: uuidv4(),
-    userId,
+    authorId: req.user.id,
+    author: req.user.username,
     title,
     content,
-    tags: Array.isArray(tags) ? tags : [],
-    visibility: visibility === 'request' ? 'request' : 'public',
+    tags: (Array.isArray(tags) ? tags : String(tags).split(',').map(s => s.trim()).filter(Boolean)),
+    visibility: (visibility === 'request' ? 'request' : 'public'),
     allowedUsers: [],
-    pendingRequests: [],
-    createdAt: now,
-    updatedAt: now,
+    comments: [],
+    createdAt: new Date().toISOString(),
+    updatedAt: new Date().toISOString()
   };
-  db.posts.push(post);
+  data.posts.unshift(post);
   saveData();
   res.json({ success: true, post });
 });
 
-app.put('/api/posts/:postId', (req, res) => {
-  const { postId } = req.params;
-  const { userId, title, content, tags, visibility } = req.body || {};
-  const post = db.posts.find(p => p.id === postId);
-  if (!post) return res.status(404).json({ error: 'Post not found' });
-  if (post.userId !== userId) return res.status(403).json({ error: 'Not the author' });
+app.put('/api/posts/:id', requireAuth, (req, res) => {
+  const post = data.posts.find(p => p.id === req.params.id);
+  if (!post) return res.status(404).json({ error: 'Not found' });
+  if (post.authorId !== req.user.id) return res.status(403).json({ error: 'Forbidden' });
+  const { title, content, tags, visibility } = req.body;
   if (title !== undefined) post.title = title;
   if (content !== undefined) post.content = content;
-  if (tags !== undefined) post.tags = Array.isArray(tags) ? tags : [];
-  if (visibility !== undefined) post.visibility = visibility === 'request' ? 'request' : 'public';
+  if (tags !== undefined) post.tags = Array.isArray(tags) ? tags : String(tags).split(',').map(s => s.trim()).filter(Boolean);
+  if (visibility !== undefined) post.visibility = (visibility === 'request' ? 'request' : 'public');
   post.updatedAt = new Date().toISOString();
   saveData();
   res.json({ success: true, post });
 });
 
-app.delete('/api/posts/:postId', (req, res) => {
-  const { postId } = req.params;
-  const { userId } = req.body || {};
-  const idx = db.posts.findIndex(p => p.id === postId);
-  if (idx === -1) return res.status(404).json({ error: 'Post not found' });
-  if (db.posts[idx].userId !== userId) return res.status(403).json({ error: 'Not the author' });
-  db.posts.splice(idx, 1);
+app.delete('/api/posts/:id', requireAuth, (req, res) => {
+  const idx = data.posts.findIndex(p => p.id === req.params.id);
+  if (idx === -1) return res.status(404).json({ error: 'Not found' });
+  if (data.posts[idx].authorId !== req.user.id) return res.status(403).json({ error: 'Forbidden' });
+  data.posts.splice(idx, 1);
   saveData();
   res.json({ success: true });
 });
 
-// ---------- Access Requests for request-only posts ----------
-app.post('/api/request-access', (req, res) => {
-  const { userId, postId } = req.body || {};
-  const post = db.posts.find(p => p.id === postId);
-  if (!post) return res.status(404).json({ error: 'Post not found' });
-  if (post.visibility !== 'request') return res.status(400).json({ error: 'Not a request-only post' });
-  post.pendingRequests = post.pendingRequests || [];
-  if (!post.pendingRequests.includes(userId) && !(post.allowedUsers||[]).includes(userId)) {
-    post.pendingRequests.push(userId);
-    saveData();
-  }
-  res.json({ success: true, pendingRequests: post.pendingRequests });
+app.get('/api/posts/public', (req, res) => {
+  res.json(data.posts.filter(p => p.visibility === 'public'));
 });
 
-// List requests for posts owned by user
-app.get('/api/requests/:ownerId', (req, res) => {
-  const { ownerId } = req.params;
-  const owned = db.posts.filter(p => p.userId === ownerId && (p.pendingRequests||[]).length > 0);
-  res.json(owned.map(p => ({
-    postId: p.id,
-    title: p.title,
-    pendingRequests: p.pendingRequests
-  })));
+app.get('/api/posts/feed', requireAuth, (req, res) => {
+  const subs = req.user.subscriptions || [];
+  const uid = req.user.id;
+  const list = data.posts.filter(p => {
+    const authoredBySub = subs.includes(p.authorId);
+    const mine = p.authorId === uid;
+    if (!(authoredBySub || mine)) return false;
+    if (p.visibility === 'public') return true;
+    if (p.authorId === uid) return true;
+    return p.allowedUsers.includes(uid);
+  });
+  res.json(list);
 });
 
-// Approve / deny request
-app.post('/api/requests/resolve', (req, res) => {
-  const { ownerId, postId, requesterId, approve } = req.body || {};
-  const post = db.posts.find(p => p.id === postId);
-  if (!post) return res.status(404).json({ error: 'Post not found' });
-  if (post.userId !== ownerId) return res.status(403).json({ error: 'Not the owner' });
-  post.pendingRequests = (post.pendingRequests || []).filter(id => id !== requesterId);
-  if (approve) {
-    post.allowedUsers = post.allowedUsers || [];
-    if (!post.allowedUsers.includes(requesterId)) post.allowedUsers.push(requesterId);
+// Access requests
+app.post('/api/posts/:id/request-access', requireAuth, (req, res) => {
+  const post = data.posts.find(p => p.id === req.params.id);
+  if (!post) return res.status(404).json({ error: 'Not found' });
+  if (post.visibility !== 'request') return res.status(400).json({ error: 'Post is not restricted' });
+  if (post.authorId === req.user.id) return res.status(400).json({ error: 'Author already has access' });
+  if (post.allowedUsers.includes(req.user.id)) return res.status(400).json({ error: 'Already allowed' });
+  if (data.accessRequests.find(r => r.postId === post.id && r.fromUserId === req.user.id && r.status === 'pending')) {
+    return res.status(400).json({ error: 'Request already pending' });
   }
+  const request = {
+    id: uuidv4(),
+    postId: post.id,
+    fromUserId: req.user.id,
+    toUserId: post.authorId,
+    status: 'pending',
+    createdAt: new Date().toISOString()
+  };
+  data.accessRequests.push(request);
   saveData();
-  res.json({ success: true, allowedUsers: post.allowedUsers, pendingRequests: post.pendingRequests });
+  res.json({ success: true, request });
 });
 
-// ---------- Comments ----------
-app.get('/api/posts/:postId/comments', (req, res) => {
-  const { postId } = req.params;
-  const post = db.posts.find(p => p.id === postId);
-  if (!post) return res.status(404).json({ error: 'Post not found' });
+app.get('/api/requests', requireAuth, (req, res) => {
+  const list = data.accessRequests
+    .filter(r => r.toUserId === req.user.id && r.status === 'pending')
+    .map(r => ({
+      ...r,
+      fromUser: (data.users.find(u => u.id === r.fromUserId)?.username || 'unknown'),
+      postTitle: (data.posts.find(p => p.id === r.postId)?.title || 'unknown')
+    }));
+  res.json(list);
+});
+
+app.post('/api/requests/:id/approve', requireAuth, (req, res) => {
+  const r = data.accessRequests.find(x => x.id === req.params.id);
+  if (!r) return res.status(404).json({ error: 'Not found' });
+  if (r.toUserId !== req.user.id) return res.status(403).json({ error: 'Forbidden' });
+  r.status = 'approved';
+  const post = data.posts.find(p => p.id === r.postId);
+  if (post && !post.allowedUsers.includes(r.fromUserId)) post.allowedUsers.push(r.fromUserId);
+  saveData();
+  res.json({ success: true });
+});
+app.post('/api/requests/:id/reject', requireAuth, (req, res) => {
+  const r = data.accessRequests.find(x => x.id === req.params.id);
+  if (!r) return res.status(404).json({ error: 'Not found' });
+  if (r.toUserId !== req.user.id) return res.status(403).json({ error: 'Forbidden' });
+  r.status = 'rejected';
+  saveData();
+  res.json({ success: true });
+});
+
+// Subscriptions
+app.post('/api/subscribe', requireAuth, (req, res) => {
+  const { targetId } = req.body;
+  const target = data.users.find(u => u.id === targetId);
+  if (!target) return res.status(404).json({ error: 'User not found' });
+  if (!req.user.subscriptions.includes(targetId)) req.user.subscriptions.push(targetId);
+  saveData();
+  res.json({ success: true, subscriptions: req.user.subscriptions });
+});
+app.post('/api/unsubscribe', requireAuth, (req, res) => {
+  const { targetId } = req.body;
+  req.user.subscriptions = (req.user.subscriptions || []).filter(id => id !== targetId);
+  saveData();
+  res.json({ success: true, subscriptions: req.user.subscriptions });
+});
+
+// Comments
+function canReadPost(user, post) {
+  if (post.visibility === 'public') return true;
+  if (!user) return false;
+  if (post.authorId === user.id) return true;
+  return post.allowedUsers.includes(user.id);
+}
+app.get('/api/posts/:id/comments', (req, res) => {
+  const post = data.posts.find(p => p.id === req.params.id);
+  if (!post) return res.status(404).json({ error: 'Not found' });
+  if (!canReadPost(null, post)) {
+    const auth = req.headers['authorization'];
+    if (auth && auth.startsWith('Bearer ')) {
+      const token = auth.slice('Bearer '.length);
+      const userId = sessions.get(token);
+      const user = data.users.find(u => u.id === userId);
+      if (!canReadPost(user, post)) return res.status(403).json({ error: 'Forbidden' });
+    } else {
+      return res.status(403).json({ error: 'Forbidden' });
+    }
+  }
   res.json(post.comments || []);
 });
-
-app.post('/api/posts/:postId/comments', (req, res) => {
-  const { postId } = req.params;
-  const { userId, content } = req.body || {};
-  const post = db.posts.find(p => p.id === postId);
-  if (!post) return res.status(404).json({ error: 'Post not found' });
-  if (!canViewPost(post, userId)) return res.status(403).json({ error: 'No access' });
-  if (!content) return res.status(400).json({ error: 'Empty comment' });
+app.post('/api/posts/:id/comments', requireAuth, (req, res) => {
+  const post = data.posts.find(p => p.id === req.params.id);
+  if (!post) return res.status(404).json({ error: 'Not found' });
+  if (!canReadPost(req.user, post)) return res.status(403).json({ error: 'Forbidden' });
   post.comments = post.comments || [];
-  post.comments.push({ id: uuidv4(), userId, content, createdAt: new Date().toISOString() });
+  const c = {
+    id: uuidv4(),
+    userId: req.user.id,
+    username: req.user.username,
+    text: String(req.body.text || '').slice(0, 1000),
+    createdAt: new Date().toISOString()
+  };
+  post.comments.push(c);
   saveData();
-  res.json({ success: true });
+  res.json({ success: true, comment: c });
 });
 
-// ---------- Tags ----------
-app.get('/api/tags', (req, res) => {
-  const set = new Set();
-  db.posts.forEach(p => (p.tags||[]).forEach(t => set.add(t)));
-  res.json([...set].sort((a,b)=> a.localeCompare(b)));
-});
+// Seed demo data (first run)
+if (data.users.length === 0 && data.posts.length === 0) {
+  (async () => {
+    const alice = { id: uuidv4(), username: 'alice', passwordHash: await bcrypt.hash('alice', 10), subscriptions: [] };
+    const bob   = { id: uuidv4(), username: 'bob',   passwordHash: await bcrypt.hash('bob', 10),   subscriptions: [] };
+    const carol = { id: uuidv4(), username: 'carol', passwordHash: await bcrypt.hash('carol', 10), subscriptions: [] };
+    data.users.push(alice, bob, carol);
+    data.posts.push({
+      id: uuidv4(),
+      authorId: bob.id, author: bob.username,
+      title: 'Публичный пост Боба',
+      content: 'Это публичный пост, доступен всем, даже гостям.',
+      tags: ['news','public'],
+      visibility: 'public', allowedUsers: [], comments: [],
+      createdAt: new Date().toISOString(), updatedAt: new Date().toISOString()
+    });
+    data.posts.push({
+      id: uuidv4(),
+      authorId: carol.id, author: carol.username,
+      title: 'Скрытый пост Кэрол',
+      content: 'Этот пост виден только по запросу.',
+      tags: ['secret'],
+      visibility: 'request', allowedUsers: [], comments: [],
+      createdAt: new Date().toISOString(), updatedAt: new Date().toISOString()
+    });
+    alice.subscriptions.push(bob.id);
+    saveData();
+  })();
+}
 
-// Fallback to SPA index
-app.get('*', (_req, res) => {
+app.get('*', (req, res) => {
   res.sendFile(path.join(__dirname, 'public', 'index.html'));
 });
 
 const PORT = process.env.PORT || 3000;
-app.listen(PORT, () => {
-  console.log('Server running on http://localhost:' + PORT);
-});
+app.listen(PORT, () => console.log('Server listening on http://localhost:' + PORT));

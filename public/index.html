@@ -1,110 +1,122 @@
-<!doctype html>
+<!DOCTYPE html>
 <html lang="ru">
 <head>
-  <meta charset="utf-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>Блог — тёмная тема</title>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Блог — Тёмная тема</title>
   <script src="https://cdn.tailwindcss.com"></script>
-  <link rel="preconnect" href="https://fonts.googleapis.com">
-  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;800&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="style.css">
+  <style>
+    .card { transition: transform .15s ease, box-shadow .15s ease; }
+    .card:hover { transform: translateY(-2px); }
+  </style>
 </head>
-<body class="bg-[#0B0B13] text-gray-100 min-h-screen font-[Inter]">
-  <div class="max-w-5xl mx-auto px-4 py-6">
-    <header class="flex items-center justify-between mb-6">
-      <h1 class="text-2xl md:text-3xl font-extrabold tracking-tight">
-        <span class="neon-text">DarkBlog</span> <span class="text-gray-400 text-base md:text-lg">— учебное приложение</span>
-      </h1>
-      <div id="authArea" class="space-x-2">
-        <button class="btn" onclick="openModal('loginModal')">Вход</button>
-        <button class="btn-secondary" onclick="openModal('registerModal')">Регистрация</button>
-      </div>
-      <div id="userArea" class="hidden items-center space-x-3">
-        <span id="helloUser" class="text-sm text-gray-300"></span>
-        <button class="btn" onclick="logout()">Выйти</button>
-      </div>
-    </header>
-
-    <nav id="navTabs" class="hidden mb-5 flex flex-wrap gap-2">
-      <button class="tab" data-tab="public" onclick="switchTab('public')">Публичные</button>
-      <button class="tab" data-tab="feed" onclick="switchTab('feed')">Лента</button>
-      <button class="tab" data-tab="myposts" onclick="switchTab('myposts')">Мои посты</button>
-      <button class="tab" data-tab="users" onclick="switchTab('users')">Пользователи</button>
-      <button class="tab" data-tab="requests" onclick="switchTab('requests')">Запросы</button>
-    </nav>
-
-    <!-- Create Post -->
-    <section id="postSection" class="hidden mb-8">
-      <h2 class="section-title">Создать пост</h2>
-      <div class="card space-y-4">
-        <input id="postTitle" class="input" placeholder="Заголовок">
-        <textarea id="postContent" class="textarea" rows="5" placeholder="Текст поста..."></textarea>
-        <input id="postTags" class="input" placeholder="Теги через запятую (например: js, tailwind)">
-        <div class="flex flex-wrap gap-3 items-center">
-          <label class="text-sm text-gray-300">Видимость:</label>
-          <select id="postVisibility" class="select">
-            <option value="public">Публичный</option>
-            <option value="request">Только по запросу</option>
-          </select>
-          <button class="btn" onclick="createPost()">Опубликовать</button>
+<body class="bg-gray-950 text-gray-100">
+  <header class="border-b border-gray-800 bg-gray-900/60 backdrop-blur sticky top-0 z-10">
+    <div class="max-w-5xl mx-auto px-4 py-3 flex items-center justify-between">
+      <div class="text-xl font-bold text-purple-400">DarkBlog</div>
+      <nav class="hidden md:flex gap-3">
+        <button id="tab-public" class="px-3 py-2 rounded-xl hover:bg-gray-800">Публичные</button>
+        <button id="tab-feed" class="px-3 py-2 rounded-xl hover:bg-gray-800">Лента</button>
+        <button id="tab-mine" class="px-3 py-2 rounded-xl hover:bg-gray-800">Мои посты</button>
+        <button id="tab-users" class="px-3 py-2 rounded-xl hover:bg-gray-800">Пользователи</button>
+        <button id="tab-requests" class="px-3 py-2 rounded-xl hover:bg-gray-800">Запросы</button>
+      </nav>
+      <div id="authArea" class="flex items-center gap-2">
+        <button id="btn-login" class="px-3 py-2 rounded-xl bg-blue-600 hover:bg-blue-500">Войти</button>
+        <button id="btn-register" class="px-3 py-2 rounded-xl bg-purple-600 hover:bg-purple-500">Регистрация</button>
+        <div id="userChip" class="hidden items-center gap-2">
+          <span id="chipName" class="text-sm text-gray-300"></span>
+          <button id="btn-logout" class="px-3 py-1 rounded-xl bg-gray-800 hover:bg-gray-700">Выйти</button>
         </div>
       </div>
+    </div>
+  </header>
+
+  <main class="max-w-5xl mx-auto px-4 py-6">
+    <section id="section-public" class="hidden">
+      <h2 class="text-2xl font-semibold mb-4">Публичные посты</h2>
+      <div id="list-public" class="grid gap-4"></div>
     </section>
 
-    <!-- Filters -->
-    <section id="filters" class="hidden mb-6">
-      <div class="card flex flex-col md:flex-row gap-3 md:items-center">
-        <input id="filterTag" class="input" placeholder="Фильтр по тегу (точное совпадение)">
-        <select id="sortMode" class="select">
-          <option value="date_desc">Сначала новые</option>
-          <option value="date_asc">Сначала старые</option>
-          <option value="title_asc">Заголовок A→Я</option>
-          <option value="title_desc">Заголовок Я→A</option>
-        </select>
-        <button class="btn" onclick="reloadActive()">Применить</button>
-      </div>
+    <section id="section-feed" class="hidden">
+      <h2 class="text-2xl font-semibold mb-4">Моя лента</h2>
+      <div id="list-feed" class="grid gap-4"></div>
     </section>
 
-    <!-- Lists -->
-    <section id="listPublic" class="hidden"></section>
-    <section id="listFeed" class="hidden"></section>
-    <section id="listMyPosts" class="hidden"></section>
-    <section id="listUsers" class="hidden"></section>
-    <section id="listRequests" class="hidden"></section>
-  </div>
+    <section id="section-mine" class="hidden">
+      <h2 class="text-2xl font-semibold mb-4">Мои посты</h2>
+      <form id="form-create" class="space-y-3 mb-6">
+        <input id="post-title" type="text" placeholder="Заголовок" class="dark-input" />
+        <textarea id="post-content" placeholder="Текст поста" rows="5" class="dark-input"></textarea>
+        <input id="post-tags" type="text" placeholder="Теги через запятую" class="dark-input" />
+        <div class="flex items-center gap-3">
+          <label class="flex items-center gap-2">
+            <input type="radio" name="visibility" value="public" checked class="accent-purple-500">
+            <span>Публичный</span>
+          </label>
+          <label class="flex items-center gap-2">
+            <input type="radio" name="visibility" value="request" class="accent-purple-500">
+            <span>По запросу</span>
+          </label>
+        </div>
+        <button class="px-4 py-2 rounded-xl bg-purple-600 hover:bg-purple-500">Создать пост</button>
+      </form>
+      <div id="list-mine" class="grid gap-4"></div>
+    </section>
 
-  <!-- Login Modal -->
-  <div id="loginModal" class="modal hidden">
-    <div class="modal-card">
-      <div class="modal-header">
-        <h3 class="text-xl font-bold">Вход</h3>
-        <button class="icon-btn" onclick="closeModal('loginModal')">✕</button>
-      </div>
-      <div class="space-y-3">
-        <input id="loginUser" class="input" placeholder="Логин (напр. alice)">
-        <input id="loginPass" class="input" type="password" placeholder="Пароль (напр. alice)">
-        <button class="btn w-full" onclick="login()">Войти</button>
-        <p class="text-sm text-gray-400">Нет аккаунта? <a href="#" class="link" onclick="closeModal('loginModal'); openModal('registerModal')">Зарегистрироваться</a></p>
+    <section id="section-users" class="hidden">
+      <h2 class="text-2xl font-semibold mb-4">Пользователи</h2>
+      <div id="list-users" class="grid gap-3"></div>
+    </section>
+
+    <section id="section-requests" class="hidden">
+      <h2 class="text-2xl font-semibold mb-4">Запросы доступа к моим постам</h2>
+      <div id="list-requests" class="grid gap-3"></div>
+    </section>
+  </main>
+
+  <div id="modal-login" class="hidden fixed inset-0 bg-black/60 backdrop-blur flex items-center justify-center p-4">
+    <div class="w-full max-w-md bg-gray-900 rounded-2xl p-6 shadow-xl">
+      <h3 class="text-xl font-semibold mb-4">Вход</h3>
+      <input id="login-username" type="text" placeholder="Логин" class="dark-input mb-3">
+      <input id="login-password" type="password" placeholder="Пароль" class="dark-input mb-4">
+      <div class="flex justify-end gap-2">
+        <button class="px-3 py-2 rounded-xl bg-gray-800 hover:bg-gray-700" onclick="hideModal('modal-login')">Отмена</button>
+        <button class="px-3 py-2 rounded-xl bg-blue-600 hover:bg-blue-500" onclick="doLogin()">Войти</button>
       </div>
     </div>
   </div>
 
-  <!-- Register Modal -->
-  <div id="registerModal" class="modal hidden">
-    <div class="modal-card">
-      <div class="modal-header">
-        <h3 class="text-xl font-bold">Регистрация</h3>
-        <button class="icon-btn" onclick="closeModal('registerModal')">✕</button>
-      </div>
-      <div class="space-y-3">
-        <input id="regUser" class="input" placeholder="Логин">
-        <input id="regPass" class="input" type="password" placeholder="Пароль">
-        <button class="btn w-full" onclick="register()">Зарегистрироваться</button>
+  <div id="modal-register" class="hidden fixed inset-0 bg-black/60 backdrop-blur flex items-center justify-center p-4">
+    <div class="w-full max-w-md bg-gray-900 rounded-2xl p-6 shadow-xl">
+      <h3 class="text-xl font-semibold mb-4">Регистрация</h3>
+      <input id="reg-username" type="text" placeholder="Логин" class="dark-input mb-3">
+      <input id="reg-password" type="password" placeholder="Пароль" class="dark-input mb-4">
+      <div class="flex justify-end gap-2">
+        <button class="px-3 py-2 rounded-xl bg-gray-800 hover:bg-gray-700" onclick="hideModal('modal-register')">Отмена</button>
+        <button class="px-3 py-2 rounded-xl bg-purple-600 hover:bg-purple-500" onclick="doRegister()">Зарегистрироваться</button>
       </div>
     </div>
   </div>
 
+  <script>
+    document.addEventListener('DOMContentLoaded', () => {
+      const style = document.createElement('style');
+      style.textContent = `
+      .dark-input { 
+        width: 100%; padding: .75rem .9rem; border-radius: .8rem;
+        background-color: rgb(31 41 55); color: white;
+        border: 1px solid rgb(75 85 99);
+        outline: none;
+      }
+      .dark-input::placeholder { color: rgb(156 163 175); }
+      .dark-input:focus {
+        border-color: rgb(168 85 247);
+        box-shadow: 0 0 0 3px rgb(168 85 247 / .25);
+      }`;
+      document.head.appendChild(style);
+    });
+  </script>
   <script src="app.js"></script>
 </body>
 </html>
