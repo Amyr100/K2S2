@@ -74,3 +74,42 @@ async function loadPosts() {
     postsDiv.appendChild(div);
   });
 }
+
+function renderPost(post) {
+  const div = document.createElement('div');
+  div.className = 'bg-gray-800 p-6 rounded-2xl shadow-lg mb-4 hover:scale-105 transition-transform duration-200';
+
+  const isSubscribed = currentUser.subscriptions?.includes(post.userId);
+
+  div.innerHTML = `
+    <h3 class='text-xl font-bold text-purple-400 mb-2'>${post.title}</h3>
+    <p class='text-gray-200 mb-2'>${post.content}</p>
+    <p class='text-sm text-gray-400'>Tags: ${post.tags.join(', ')}</p>
+    <button onclick="toggleSubscribe('${post.userId}')" class="btn mt-2">
+      ${isSubscribed ? 'Unsubscribe' : 'Subscribe'}
+    </button>
+  `;
+  document.getElementById('posts').appendChild(div);
+}
+
+async function toggleSubscribe(targetId) {
+  const subscribed = currentUser.subscriptions?.includes(targetId);
+  const endpoint = subscribed ? '/api/unsubscribe' : '/api/subscribe';
+
+  const res = await fetch(endpoint, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ userId: currentUser.userId, targetId })
+  });
+  const data = await res.json();
+  if (data.success) {
+    if (!currentUser.subscriptions) currentUser.subscriptions = [];
+    if (subscribed) {
+      currentUser.subscriptions = currentUser.subscriptions.filter(id => id !== targetId);
+    } else {
+      currentUser.subscriptions.push(targetId);
+    }
+    loadPosts(); // Перерисовать список постов
+  }
+}
+
