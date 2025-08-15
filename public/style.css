@@ -1,58 +1,42 @@
-:root {
-  --neon: #8b5cf6;
-  --neon2: #38bdf8;
+body {
+    background-color: #121212;
+    color: white;
+    font-family: Arial, sans-serif;
+    margin: 0;
+    height: 100vh;
+    display: flex;
+    align-items: center;
+    justify-content: center;
 }
-.neon-text {
-  color: var(--neon);
-  text-shadow: 0 0 12px rgba(139,92,246,.65), 0 0 24px rgba(139,92,246,.35);
-}
-.card {
-  @apply bg-[#12121C] rounded-2xl p-5 shadow-xl;
-  box-shadow: 0 10px 30px rgba(0,0,0,.35), 0 0 0 1px rgba(139,92,246,.08) inset;
-}
-.section-title { @apply text-xl font-bold mb-3 text-gray-100; }
-
-.btn {
-  @apply px-4 py-2 rounded-2xl font-semibold bg-gradient-to-tr from-violet-600 to-fuchsia-600 hover:from-violet-500 hover:to-fuchsia-500 transition;
-  box-shadow: 0 8px 24px rgba(139,92,246,.35);
-}
-.btn-secondary {
-  @apply px-4 py-2 rounded-2xl font-semibold bg-[#171725] hover:bg-[#1E1E2E] transition;
-  box-shadow: 0 8px 24px rgba(56,189,248,.2);
-}
-.icon-btn { @apply text-gray-400 hover:text-gray-200; }
-
-.input {
-  @apply w-full px-4 py-3 rounded-2xl bg-[#0F0F18] outline-none border border-transparent text-gray-100 placeholder:text-gray-500;
-  box-shadow: 0 0 0 1px rgba(139,92,246,.15) inset;
-}
-.input:focus {
-  box-shadow: 0 0 0 2px rgba(139,92,246,.45), 0 0 24px rgba(139,92,246,.25);
-}
-.textarea { @apply input; }
-.select { @apply input pr-8; }
-
-.tag {
-  @apply text-xs px-2 py-1 rounded-full bg-[#1C1C2A] text-gray-300;
-  box-shadow: 0 0 0 1px rgba(139,92,246,.15) inset;
-}
-
-.post {
-  @apply card mb-4 transition-transform;
-}
-.post:hover { transform: translateY(-2px); }
-
 .modal {
-  @apply fixed inset-0 bg-black/60 backdrop-blur flex items-center justify-center p-4 z-50;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    position: fixed;
+    top: 0; left: 0;
+    width: 100%; height: 100%;
+    background-color: rgba(0, 0, 0, 0.6);
 }
-.modal-card {
-  @apply bg-[#12121C] rounded-2xl p-6 w-full max-w-md;
-  box-shadow: 0 10px 40px rgba(0,0,0,.5), 0 0 0 1px rgba(139,92,246,.12) inset;
+.modal-content {
+    background: #1e1e1e;
+    padding: 20px;
+    border-radius: 8px;
+    width: 300px;
+    text-align: center;
 }
-.modal-header { @apply flex items-center justify-between mb-4; }
-
-.tab {
-  @apply px-4 py-2 rounded-2xl bg-[#141421] text-gray-200 hover:bg-[#1A1A2A] transition;
+.modal-content input {
+    width: 90%;
+    padding: 10px;
+    margin: 5px 0;
+    border: none;
+    border-radius: 4px;
 }
-.link { @apply text-sky-400 hover:underline; }
-.hidden { display: none; }
+button {
+    padding: 10px 15px;
+    margin: 5px;
+    background: #4CAF50;
+    color: white;
+    border: none;
+    border-radius: 4px;
+    cursor: pointer;
+}
