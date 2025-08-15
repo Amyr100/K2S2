@@ -16,17 +16,21 @@ function setAuthUI(){
     document.getElementById('createPost').classList.add('hidden');
   }
 }
-function openLogin(){ state.authMode='login'; document.getElementById('authTitle').textContent='Вход'; document.getElementById('authModal').classList.remove('hidden'); }
-function closeLogin(){ document.getElementById('authModal').classList.add('hidden'); }
-document.getElementById('authSwap').onclick = ()=>{ state.authMode = state.authMode==='login'?'register':'login'; document.getElementById('authTitle').textContent = state.authMode==='login'?'Вход':'Регистрация'; };
+
+function openLogin(){ state.authMode='login'; document.getElementById('authTitle').textContent='Вход'; document.getElementById('authMessage').textContent=''; document.getElementById('authModal').classList.add('show'); }
+function closeLogin(){ document.getElementById('authModal').classList.remove('show'); }
+
+document.getElementById('authSwap').onclick = ()=>{ state.authMode = state.authMode==='login'?'register':'login'; document.getElementById('authTitle').textContent = state.authMode==='login'?'Вход':'Регистрация'; document.getElementById('authMessage').textContent=''; };
 document.getElementById('authSubmit').onclick = async ()=>{
   const username = document.getElementById('authUser').value.trim();
   const password = document.getElementById('authPass').value.trim();
+  const msgEl = document.getElementById('authMessage');
+  if(!username || !password){ msgEl.textContent='Введите логин и пароль'; return; }
   const url = state.authMode==='login' ? '/api/login' : '/api/register';
   const res = await fetch(url,{method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({username,password})});
   const data = await res.json();
   if(data.success){ state.token=data.token; localStorage.setItem('token', data.token); state.user=data.user; setAuthUI(); closeLogin(); loadTab('public'); loadSubsBox(); }
-  else alert(data.error||'Ошибка');
+  else { msgEl.textContent = data.error || 'Ошибка'; }
 };
 
 async function api(path, opts={}){
@@ -81,7 +85,7 @@ function needLogin(){ return `<div class="card p-4 text-sm text-gray-400">Нуж
 
 function renderPosts(posts, mine=false){
   const list = document.getElementById('list');
-  if(posts.length===0){ list.innerHTML='<div class="card p-4 text-sm text-gray-400">Постов нет</div>'; return; }
+  if(!posts || posts.length===0){ list.innerHTML='<div class="card p-4 text-sm text-gray-400">Постов нет</div>'; return; }
   posts.forEach(p=>{
     const card = document.createElement('div'); card.className='card p-4';
     const tags = (p.tags||[]).map(t=>`<span class="tag cursor-pointer" data-tag="${t}">#${t}</span>`).join(' ');
@@ -115,7 +119,6 @@ function renderPosts(posts, mine=false){
       const d=document.createElement('button'); d.className='tab text-sm'; d.textContent='Удалить'; d.onclick=async()=>{ await api(`/api/posts/${p.id}`,{method:'DELETE'}); selectTab('mine'); };
       act.append(e,d);
     }
-    // comments
     const commentsBox=document.createElement('div'); commentsBox.className='mt-4 space-y-2'; loadComments(p.id, commentsBox);
     if(state.user && !p.restricted){
       const add=document.createElement('div'); add.className='flex gap-2';

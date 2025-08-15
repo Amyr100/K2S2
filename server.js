@@ -25,7 +25,7 @@ let db = { users: [], posts: [], requests: [], comments: [] };
 function loadDB(){
   if (fs.existsSync(DATA_FILE)){
     try{ db = JSON.parse(fs.readFileSync(DATA_FILE, 'utf-8')); }
-    catch(e){ console.error('Failed to parse data.json:', e); }
+    catch(e){ console.error('Failed to parse data.json:', e); db={users:[],posts:[],requests:[],comments:[]}; }
   } else {
     db = seed(); saveDB();
   }
@@ -110,7 +110,7 @@ app.post('/api/unsubscribe', requireAuth, (req,res)=>{
   res.json({success:true, subscriptions:me.subscriptions});
 });
 
-// Posts
+// Posts and related endpoints (same as before)
 app.get('/api/posts/public', (req,res)=>{
   const viewer = req.user?.id;
   const result = db.posts
@@ -161,7 +161,7 @@ app.delete('/api/posts/:id', requireAuth, (req,res)=>{
   db.posts.splice(idx,1); saveDB(); res.json({success:true});
 });
 
-// Access requests
+// Access requests endpoints (same as before)
 app.post('/api/posts/:id/request-access', requireAuth, (req,res)=>{
   const post = db.posts.find(p=>p.id===req.params.id);
   if(!post || post.visibility!=='restricted') return res.status(400).json({error:'Invalid post'});
@@ -193,33 +193,30 @@ app.post('/api/requests/:id/deny', requireAuth, (req,res)=>{
   r.status='denied'; saveDB(); res.json({success:true});
 });
 
-// Tags
+// Tags and comments (same as before)
 app.get('/api/tags', (req,res)=>{
   const counts = {};
-  for(const p of db.posts){
-    for(const t of (p.tags||[])){
-      const k = t.toLowerCase();
-      counts[k] = (counts[k]||0)+1;
-    }
-  }
+  for(const p of db.posts){ for(const t of (p.tags||[])){ const k=t.toLowerCase(); counts[k]=(counts[k]||0)+1; } }
   res.json(Object.entries(counts).map(([tag,count])=>({tag,count})).sort((a,b)=>b.count-a.count));
 });
 app.get('/api/posts/by-tag/:tag', (req,res)=>{
   const viewer = req.user?.id;
   const tag = req.params.tag.toLowerCase();
-  const result = db.posts
-    .filter(p=>(p.tags||[]).some(t=>t.toLowerCase()===tag))
-    .filter(p=>p.visibility==='public' || p.visibility==='restricted')
-    .map(p=>{
-      const base = { id:p.id, title:p.title, authorId:p.authorId, author:uname(p.authorId), tags:p.tags||[], visibility:p.visibility, createdAt:p.createdAt };
-      const canSee = p.visibility==='public' || p.authorId===viewer || (p.allowedUserIds||[]).includes(viewer);
-      return canSee ? { ...base, content:p.content } : { ...base, restricted:true };
-    });
+  const result = db.posts.filter(p=>(p.tags||[]).some(t=>t.toLowerCase()===tag)).filter(p=>p.visibility==='public' || p.visibility==='restricted').map(p=>{
+    const base = { id:p.id, title:p.title, authorId:p.authorId, author:uname(p.authorId), tags:p.tags||[], visibility:p.visibility, createdAt:p.createdAt };
+    const canSee = p.visibility==='public' || p.authorId===viewer || (p.allowedUserIds||[]).includes(viewer);
+    return canSee ? { ...base, content:p.content } : { ...base, restricted:true };
+  });
   res.json(result);
 });
 
-// Serve SPA
-app.get('*', (req,res)=> res.sendFile(path.join(__dirname,'public','index.html')));
+app.get('/api/posts/:id/comments', (req,res)=>{ res.json(db.comments.filter(c=>c.postId===req.params.id).map(c=>({...c, author:(uById(c.authorId)||{}).username}))); });
+app.post('/api/posts/:id/comments', requireAuth, (req,res)=>{
+  const { text } = req.body; if(!text) return res.status(400).json({error:'Empty comment'});
+  const comment = { id:uuidv4(), postId:req.params.id, authorId:req.user.id, text, createdAt:new Date().toISOString() };
+  db.comments.push(comment); saveDB(); res.json({success:true, comment:{...comment, author:(uById(comment.authorId)||{}).username}});
+});
 
+app.get('*', (req,res)=> res.sendFile(path.join(__dirname,'public','index.html')));
 const PORT = process.env.PORT || 3000;
 app.listen(PORT, ()=> console.log('Server http://localhost:'+PORT));

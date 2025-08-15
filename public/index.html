@@ -4,7 +4,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-  <title>Social App V3 (Node)</title>
+  <title>Social App V3.1 (Node)</title>
   <script src="https://cdn.tailwindcss.com"></script>
   <style>
     html,body { background:#0b0b12; color:#e6e6f0; }
@@ -17,11 +17,14 @@
     .tag { background:#1f1f33; border:1px solid #2b2b46; padding:.2rem .5rem; border-radius:999px; font-size:.8rem; }
     .tab { cursor:pointer; padding:.5rem .9rem; border-radius:10px; }
     .tab.active { background:#1a1a2a; border:1px solid #2a2a44; }
+    /* center modal helpers */
+    .modal-backdrop { position:fixed; inset:0; background:rgba(0,0,0,0.6); display:none; align-items:center; justify-content:center; z-index:50; }
+    .modal-backdrop.show { display:flex; }
   </style>
 </head>
 <body class="min-h-screen">
   <header class="max-w-6xl mx-auto px-4 py-4 flex items-center justify-between">
-    <h1 class="text-2xl font-bold neon">Social App V3</h1>
+    <h1 class="text-2xl font-bold neon">Social App V3.1</h1>
     <div id="authArea" class="flex items-center gap-3"></div>
   </header>
 
@@ -71,15 +74,18 @@
     </aside>
   </main>
 
-  <!-- Auth modal -->
-  <div id="authModal" class="fixed inset-0 bg-black/60 hidden items-center justify-center">
+  <!-- Auth modal centered -->
+  <div id="authModal" class="modal-backdrop" role="dialog" aria-modal="true">
     <div class="card p-5 w-full max-w-sm">
       <h3 class="font-semibold mb-3" id="authTitle">Вход</h3>
       <div class="grid gap-3">
         <input id="authUser" placeholder="Логин" class="input-dark">
         <input id="authPass" placeholder="Пароль" type="password" class="input-dark">
-        <button id="authSubmit" class="btn">OK</button>
-        <button id="authSwap" class="text-xs underline text-left">перейти к регистрации</button>
+        <div class="flex gap-2 justify-end">
+          <button id="authSwap" class="text-xs underline">перейти к регистрации</button>
+          <button id="authSubmit" class="btn">OK</button>
+        </div>
+        <div id="authMessage" class="text-sm text-red-400"></div>
       </div>
     </div>
   </div>
