@@ -262,12 +262,19 @@ async function loadSubscriptions() {
 // Обработчик кнопки "Подписки"
 document.getElementById('subscriptionsBtn').addEventListener('click', loadSubscriptions);
 
-// Поиск по тегам 
+// Поиск по тегам
 async function searchByTag() {
-  const tag = document.getElementById("searchTag").value.trim();
-  if (!tag) return;
+  let tag = document.getElementById('searchTag').value.trim();
+  if (!tag) {
+    await loadPublic();
+    return;
+  }
 
-  const res = await fetch(`/api/posts/search?tag=${encodeURIComponent(tag)}&userId=${currentUser?.userId || ''}`);
+  // allow users to type tag with leading '#'
+  tag = tag.replace(/^#/, '');
+
+  const userId = STATE.user ? STATE.user.id : '';
+  const res = await api(`/api/posts/search?tag=${encodeURIComponent(tag)}&userId=${encodeURIComponent(userId)}`);
   const data = await res.json();
-  renderPosts("posts", data);
+  renderPosts('list-public', data);
 }
