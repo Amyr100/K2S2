@@ -1,170 +1,268 @@
 
-// Frontend for Social App V4 (auth fixed, centered modal, tags, subscriptions, requests)
-document.addEventListener('DOMContentLoaded', () => {
-  let state = { token: null, user: null, currentTab: 'public', authMode: 'login' };
+let STATE = {
+  token: localStorage.getItem('token') || '',
+  user: JSON.parse(localStorage.getItem('user') || 'null')
+};
 
-  function setAuthUI(){
-    const area = document.getElementById('authArea');
-    area.innerHTML = '';
-    if (state.user){
-      const span = document.createElement('span'); span.textContent = '@' + state.user.username;
-      const logout = document.createElement('button'); logout.className = 'tab'; logout.textContent = 'Выйти';
-      logout.onclick = () => { localStorage.removeItem('token'); state.token = null; state.user = null; setAuthUI(); loadTab(state.currentTab); loadSubsBox(); };
-      area.append(span, logout);
-      document.getElementById('createPost').classList.remove('hidden');
-    } else {
-      const loginBtn = document.createElement('button'); loginBtn.className = 'btn'; loginBtn.textContent = 'Войти / Регистрация'; loginBtn.onclick = openLogin;
-      area.append(loginBtn);
-      document.getElementById('createPost').classList.add('hidden');
-    }
+function setAuth(token, user) {
+  STATE.token = token;
+  STATE.user = user;
+  if (token) localStorage.setItem('token', token); else localStorage.removeItem('token');
+  if (user) localStorage.setItem('user', JSON.stringify(user)); else localStorage.removeItem('user');
+  renderAuthArea();
+}
+
+function api(path, opts = {}) {
+  const headers = opts.headers || {};
+  headers['Content-Type'] = 'application/json';
+  if (STATE.token) headers['Authorization'] = 'Bearer ' + STATE.token;
+  return fetch(path, { ...opts, headers });
+}
+
+function show(id) { document.getElementById(id).classList.remove('hidden'); }
+function hide(id) { document.getElementById(id).classList.add('hidden'); }
+function hideAllSections() { ['section-public','section-feed','section-mine','section-users','section-requests'].forEach(hide); }
+function showModal(id){ show(id); }
+function hideModal(id){ hide(id); }
+function renderAuthArea() {
+  const btnLogin = document.getElementById('btn-login');
+  const btnRegister = document.getElementById('btn-register');
+  const chip = document.getElementById('userChip');
+  const chipName = document.getElementById('chipName');
+  if (STATE.user && STATE.token) {
+    btnLogin.classList.add('hidden');
+    btnRegister.classList.add('hidden');
+    chip.classList.remove('hidden');
+    chipName.textContent = STATE.user.username;
+  } else {
+    btnLogin.classList.remove('hidden');
+    btnRegister.classList.remove('hidden');
+    chip.classList.add('hidden');
   }
+}
 
-  function openLogin(){ state.authMode = 'login'; document.getElementById('authTitle').textContent = 'Вход'; document.getElementById('authMessage').textContent=''; document.getElementById('authUser').value=''; document.getElementById('authPass').value=''; document.getElementById('authModal').classList.add('show'); }
-  function closeLogin(){ document.getElementById('authModal').classList.remove('show'); }
+async function doLogin() {
+  const username = document.getElementById('login-username').value.trim();
+  const password = document.getElementById('login-password').value;
+  const res = await api('/api/login', { method:'POST', body: JSON.stringify({ username, password }) });
+  const data = await res.json();
+  if (data.success) { setAuth(data.token, data.user); hideModal('modal-login'); selectTab('public'); }
+  else alert(data.error || 'Login failed');
+}
+async function doRegister() {
+  const username = document.getElementById('reg-username').value.trim();
+  const password = document.getElementById('reg-password').value;
+  const res = await api('/api/register', { method:'POST', body: JSON.stringify({ username, password }) });
+  const data = await res.json();
+  if (data.success) { setAuth(data.token, data.user); hideModal('modal-register'); selectTab('mine'); }
+  else alert(data.error || 'Registration failed');
+}
+async function doLogout() {
+  if (STATE.token) { try { await api('/api/logout', { method:'POST' }); } catch(e){} }
+  setAuth('', null);
+  selectTab('public');
+}
 
-  document.getElementById('authSwap').addEventListener('click', ()=>{ state.authMode = state.authMode === 'login' ? 'register' : 'login'; document.getElementById('authTitle').textContent = state.authMode==='login' ? 'Вход' : 'Регистрация'; document.getElementById('authMessage').textContent=''; });
-  document.getElementById('authSubmit').addEventListener('click', submitAuth);
-  document.getElementById('authModal').addEventListener('keydown', (e)=>{ if(e.key==='Enter'){ e.preventDefault(); submitAuth(); } if(e.key==='Escape'){ closeLogin(); } });
-  document.getElementById('authModal').addEventListener('click', (e)=>{ if(e.target === document.getElementById('authModal')) closeLogin(); });
+document.getElementById('tab-public').addEventListener('click', () => selectTab('public'));
+document.getElementById('tab-feed').addEventListener('click', () => selectTab('feed'));
+document.getElementById('tab-mine').addEventListener('click', () => selectTab('mine'));
+document.getElementById('tab-users').addEventListener('click', () => selectTab('users'));
+document.getElementById('tab-requests').addEventListener('click', () => selectTab('requests'));
+document.getElementById('btn-login').addEventListener('click', () => showModal('modal-login'));
+document.getElementById('btn-register').addEventListener('click', () => showModal('modal-register'));
+document.getElementById('btn-logout').addEventListener('click', doLogout);
 
-  async function submitAuth(){
-    const username = document.getElementById('authUser').value.trim();
-    const password = document.getElementById('authPass').value.trim();
-    const msg = document.getElementById('authMessage'); msg.textContent = '';
-    if (!username || !password){ msg.textContent = 'Введите логин и пароль'; return; }
-    const url = state.authMode === 'login' ? '/api/login' : '/api/register';
-    try {
-      const res = await fetch(url, { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ username, password }) });
-      const data = await res.json();
-      if (res.ok && data.success){
-        state.token = data.token; localStorage.setItem('token', data.token); state.user = data.user; setAuthUI(); closeLogin(); loadTab('public'); loadSubsBox();
-      } else {
-        msg.textContent = data.error || data.message || 'Ошибка';
-      }
-    } catch (e){
-      msg.textContent = 'Сетевая ошибка';
-    }
+async function selectTab(name) {
+  hideAllSections();
+  if (name === 'public') { show('section-public'); await loadPublic(); }
+  else if (name === 'feed') {
+    if (!STATE.token) { alert('Войдите, чтобы увидеть ленту'); return selectTab('public'); }
+    show('section-feed'); await loadFeed();
+  } else if (name === 'mine') {
+    if (!STATE.token) { alert('Войдите, чтобы управлять постами'); return selectTab('public'); }
+    show('section-mine'); await loadMine();
+  } else if (name === 'users') {
+    show('section-users'); await loadUsers();
+  } else if (name === 'requests') {
+    if (!STATE.token) { alert('Войдите, чтобы модераировать запросы'); return selectTab('public'); }
+    show('section-requests'); await loadRequests();
   }
+}
 
-  async function api(path, opts={}){
-    const headers = {'Content-Type':'application/json', ...(opts.headers||{})};
-    if (state.token) headers['Authorization'] = 'Bearer '+state.token;
-    const res = await fetch(path, { ...opts, headers });
-    try { return await res.json(); } catch(e){ return { error:'Invalid response' }; }
-  }
+function el(html) { const d=document.createElement('div'); d.innerHTML=html; return d.firstElementChild; }
+function escapeHtml(s){ return String(s).replaceAll('&','&amp;').replaceAll('<','&lt;').replaceAll('>','&gt;'); }
 
-  function selectTab(name){ state.currentTab=name; document.querySelectorAll('nav .tab').forEach(b=>b.classList.toggle('active', b.dataset.tab===name)); loadTab(name); }
-
-  async function loadTab(name){
-    const list = document.getElementById('list'); list.innerHTML='';
-    if (name==='public'){ const posts = await api('/api/posts/public'); renderPosts(posts); }
-    if (name==='feed'){ if(!state.user) { list.innerHTML = needLogin(); return; } const posts = await api('/api/posts/feed'); renderPosts(posts); }
-    if (name==='mine'){ if(!state.user) { list.innerHTML = needLogin(); return; } const posts = await api('/api/posts/mine'); renderPosts(posts, true); }
-    if (name==='subs'){ if(!state.user){ list.innerHTML = needLogin(); return; } const subs = await api('/api/subscriptions/list'); const box = document.createElement('div'); box.className='card p-4'; if(!subs || subs.length===0){ box.innerHTML = '<div class=\"text-sm text-gray-400\">Подписок пока нет</div>'; } else subs.forEach(u=>{ const row = document.createElement('div'); row.className='flex items-center justify-between py-2 border-b border-white/5 last:border-none'; row.innerHTML = `<div>@${u.username}</div>`; const btn = document.createElement('button'); btn.className='text-xs underline'; btn.textContent='Отписаться'; btn.onclick = async()=>{ await api('/api/unsubscribe',{method:'POST', body:JSON.stringify({ targetUserId: u.id })}); loadSubsBox(); selectTab('subs'); }; row.append(btn); box.append(row); }); list.append(box); }
-    if (name==='requests'){ if(!state.user){ list.innerHTML = needLogin(); return; } const reqs = await api('/api/requests'); const box = document.createElement('div'); box.className='card p-4 space-y-2'; if(!reqs || reqs.length===0){ box.innerHTML = '<div class=\"text-sm text-gray-400\">Запросов нет</div>'; } else reqs.forEach(r=>{ const row = document.createElement('div'); row.className='flex items-center justify-between py-2 border-b border-white/5 last:border-none'; row.innerHTML = `<div><b>${r.requester}</b> просит доступ к «${r.postTitle}»</div>`; const actions = document.createElement('div'); actions.className='flex gap-2'; const a=document.createElement('button'); a.className='btn text-sm'; a.textContent='Одобрить'; a.onclick = async()=>{ await api(`/api/requests/${r.id}/approve`,{method:'POST'}); selectTab('requests'); }; const d=document.createElement('button'); d.className='tab text-sm'; d.textContent='Отклонить'; d.onclick = async()=>{ await api(`/api/requests/${r.id}/deny`,{method:'POST'}); selectTab('requests'); }; actions.append(a,d); row.append(actions); box.append(row); }); list.append(box); }
-  }
-
-  function needLogin(){ return `<div class="card p-4 text-sm text-gray-400">Нужен вход</div>`; }
-
-  function renderPosts(posts, mine=false){
-    const list = document.getElementById('list');
-    if(!posts || posts.length===0){ list.innerHTML='<div class=\"card p-4 text-sm text-gray-400\">Постов нет</div>'; return; }
-    posts.forEach(p=>{
-      const card = document.createElement('div'); card.className='card p-4';
-      const tags = (p.tags||[]).map(t=>`<span class=\"tag cursor-pointer\" data-tag=\"${t}\">#${t}</span>`).join(' ');
-      const content = p.restricted ? '<i class=\"text-sm text-gray-400\">Контент доступен по запросу</i>' : (p.content||'');
-      card.innerHTML = `
-        <div class="flex items-center justify-between">
-          <div class="font-semibold">${p.title}</div>
-          <div class="text-xs text-gray-400">@${p.author}</div>
+function renderPosts(containerId, posts) {
+  const container = document.getElementById(containerId);
+  container.innerHTML='';
+  if (!posts.length) { container.appendChild(el('<div class=\"text-gray-400\">Нет постов</div>')); return; }
+  posts.forEach(p => {
+    const canEdit = STATE.user && p.authorId === STATE.user.id;
+    const canRequest = STATE.user && p.visibility === 'request' && p.authorId !== STATE.user.id && !(p.allowedUsers||[]).includes(STATE.user.id);
+    const subscribed = STATE.user && (STATE.user.subscriptions||[]).includes(p.authorId);
+    const card = el(`
+      <article class="card bg-gray-900 rounded-2xl p-5 shadow border border-gray-800">
+        <div class="flex items-center justify-between mb-2">
+          <h3 class="text-xl font-semibold text-purple-400">${escapeHtml(p.title)}</h3>
+          <div class="text-sm text-gray-400">${new Date(p.createdAt).toLocaleString()}</div>
         </div>
-        <div class="mt-2 whitespace-pre-wrap">${content}</div>
-        <div class="mt-3 flex flex-wrap gap-2">${tags}</div>
-        <div class="mt-3 flex items-center gap-2" id="actions-${p.id}"></div>
-      `;
-      const act = card.querySelector(`#actions-${p.id}`);
-      if(p.restricted){
-        if(state.user){
-          const b=document.createElement('button'); b.className='btn text-sm'; b.textContent='Запросить доступ'; b.onclick = async()=>{ const r=await api(`/api/posts/${p.id}/request-access`,{method:'POST'}); alert(r.error || 'Запрос отправлен'); }; act.append(b);
-        } else {
-          const b=document.createElement('button'); b.className='btn text-sm'; b.textContent='Войти, чтобы запросить'; b.onclick = openLogin; act.append(b);
-        }
-      }
-      if(state.user && p.authorId !== state.user.id){
-        const sub=document.createElement('button'); sub.className='tab text-sm'; sub.textContent='Подписаться'; sub.onclick = async()=>{ await api('/api/subscribe',{method:'POST', body:JSON.stringify({ targetUserId: p.authorId })}); loadSubsBox(); alert('Подписка оформлена'); }; act.append(sub);
-      }
-      if(mine){
-        const e=document.createElement('button'); e.className='tab text-sm'; e.textContent='Редактировать'; e.onclick=()=>editPostPrompt(p);
-        const d=document.createElement('button'); d.className='tab text-sm'; d.textContent='Удалить'; d.onclick=async()=>{ await api(`/api/posts/${p.id}`,{method:'DELETE'}); selectTab('mine'); };
-        act.append(e,d);
-      }
-      const commentsBox=document.createElement('div'); commentsBox.className='mt-4 space-y-2'; loadComments(p.id, commentsBox);
-      if(state.user && !p.restricted){
-        const add=document.createElement('div'); add.className='flex gap-2';
-        const input=document.createElement('input'); input.className='input-dark flex-1'; input.placeholder='Ваш комментарий...';
-        const btn=document.createElement('button'); btn.className='btn'; btn.textContent='Отправить'; btn.onclick = async()=>{ const text=input.value.trim(); if(!text) return; await api(`/api/posts/${p.id}/comments`,{method:'POST', body:JSON.stringify({ text })}); input.value=''; loadComments(p.id, commentsBox, true); };
-        add.append(input,btn); commentsBox.append(add);
-      }
-      card.append(commentsBox);
-      list.append(card);
-    });
-    document.querySelectorAll('.tag').forEach(el=> el.addEventListener('click', ()=> filterByTag(el.dataset.tag)));
-  }
-
-  async function loadComments(postId, box, refresh=false){
-    const list = await api(`/api/posts/${postId}/comments`);
-    const container=document.createElement('div'); container.className='space-y-1';
-    (list||[]).forEach(c=>{ const row=document.createElement('div'); row.className='text-sm text-gray-300'; row.textContent=`@${c.author}: ${c.text}`; container.append(row); });
-    if(refresh){ const prev = box.querySelector(':scope > .space-y-1'); if(prev) prev.remove(); }
-    box.prepend(container);
-  }
-
-  document.querySelectorAll('nav .tab').forEach(btn=> btn.addEventListener('click', ()=> selectTab(btn.dataset.tab)));
-  document.getElementById('btnCreate').addEventListener('click', async ()=>{
-    if(!state.user) return openLogin();
-    const title=document.getElementById('title').value.trim();
-    const content=document.getElementById('content').value.trim();
-    const tags=document.getElementById('tags').value.split(',').map(s=>s.trim()).filter(Boolean);
-    const visibility=[...document.querySelectorAll('input[name=\"vis\"]')].find(x=>x.checked).value;
-    const res = await api('/api/posts',{method:'POST', body:JSON.stringify({ title, content, tags, visibility })});
-    if(res.error) return alert(res.error);
-    document.getElementById('title').value=''; document.getElementById('content').value=''; document.getElementById('tags').value='';
-    selectTab('mine'); refreshTagCloud();
+        <div class="text-gray-200 whitespace-pre-wrap mb-3">${escapeHtml(p.content)}</div>
+        <div class="flex flex-wrap gap-2 mb-3">
+          ${(p.tags||[]).map(t => `<span class="px-2 py-0.5 rounded-lg bg-gray-800 text-xs border border-gray-700">#${escapeHtml(t)}</span>`).join('')}
+        </div>
+        <div class="flex items-center justify-between">
+          <div class="text-sm text-gray-400">Автор: <span class="text-gray-200">${escapeHtml(p.author)}</span> ${p.visibility==='request' ? '<span class="ml-2 text-xs px-2 py-0.5 rounded bg-amber-600/20 text-amber-300 border border-amber-700">по запросу</span>':''}</div>
+          <div class="flex items-center gap-2">
+            ${STATE.user && (p.authorId !== STATE.user.id) ? `<button class="px-3 py-1 rounded-xl bg-gray-800 hover:bg-gray-700" onclick="toggleSubscribe('${p.authorId}')">${subscribed?'Отписаться':'Подписаться'}</button>`:''}
+            ${canRequest ? `<button class="px-3 py-1 rounded-xl bg-blue-600 hover:bg-blue-500" onclick="requestAccess('${p.id}')">Запросить доступ</button>`:''}
+            ${canEdit ? `<button class="px-3 py-1 rounded-xl bg-gray-800 hover:bg-gray-700" onclick="startEdit('${p.id}')">Редактировать</button>
+                         <button class="px-3 py-1 rounded-xl bg-red-600 hover:bg-red-500" onclick="deletePost('${p.id}')">Удалить</button>`:''}
+          </div>
+        </div>
+        <div class="mt-4 border-t border-gray-800 pt-3">
+          <div class="flex gap-2">
+            <input id="cmt-${p.id}" class="dark-input" placeholder="Написать комментарий..." />
+            <button class="px-3 py-2 rounded-xl bg-purple-600 hover:bg-purple-500" onclick="addComment('${p.id}')">Отправить</button>
+          </div>
+          <div id="cmts-${p.id}" class="mt-3 space-y-2 text-sm text-gray-200"></div>
+        </div>
+      </article>`);
+    container.appendChild(card);
+    loadComments(p.id);
   });
+}
 
-  function editPostPrompt(p){
-    const title = prompt('Заголовок', p.title); if(title===null) return;
-    const content = prompt('Текст', p.content||''); if(content===null) return;
-    const tags = prompt('Теги через запятую', (p.tags||[]).join(', '));
-    const visibility = confirm('Сделать пост закрытым «по запросу»? OK—да / Cancel—нет') ? 'restricted' : 'public';
-    api(`/api/posts/${p.id}`, { method:'PUT', body: JSON.stringify({ title, content, tags: (tags||'').split(',').map(s=>s.trim()).filter(Boolean), visibility }) }).then(()=>{ selectTab('mine'); refreshTagCloud(); });
-  }
+async function loadPublic(){ const r=await api('/api/posts/public'); const p=await r.json(); renderPosts('list-public',p); }
+async function loadFeed(){ const r=await api('/api/posts/feed'); const p=await r.json(); renderPosts('list-feed',p); }
+async function loadMine(){
+  await loadMyPostsList();
+  document.getElementById('form-create').onsubmit = async (e) => {
+    e.preventDefault();
+    const title = document.getElementById('post-title').value.trim();
+    const content = document.getElementById('post-content').value.trim();
+    const tags = document.getElementById('post-tags').value.split(',').map(s=>s.trim()).filter(Boolean);
+    const visibility = document.querySelector('input[name="visibility"]:checked').value;
+    const res = await api('/api/posts', { method:'POST', body: JSON.stringify({ title, content, tags, visibility }) });
+    const data = await res.json();
+    if (data.success) {
+      document.getElementById('post-title').value='';
+      document.getElementById('post-content').value='';
+      document.getElementById('post-tags').value='';
+      await loadMyPostsList();
+      if (visibility==='public') await loadPublic();
+    } else alert(data.error || 'Ошибка создания');
+  };
+}
+async function loadMyPostsList(){
+  const rPub = await api('/api/posts/public'); let posts = await rPub.json();
+  if (STATE.user && STATE.token) {
+    const r2 = await api('/api/posts/feed'); const p2 = await r2.json();
+    const mine = (p2||[]).filter(p=>p.authorId===STATE.user.id);
+    const map=new Map(posts.map(p=>[p.id,p])); for(const m of mine) map.set(m.id,m);
+    posts = Array.from(map.values()).filter(p=>p.authorId===STATE.user.id);
+  } else posts = [];
+  renderPosts('list-mine', posts);
+}
 
-  async function refreshTagCloud(){ renderTagCloud(await api('/api/tags')); }
-  function renderTagCloud(list){
-    const box = document.getElementById('tagCloud'); box.innerHTML='';
-    if(!list || !list.length){ box.innerHTML = '<div class=\"text-sm text-gray-400\">Пока тегов нет</div>'; return; }
-    const max = Math.max(...list.map(x=>x.count)), min = Math.min(...list.map(x=>x.count));
-    list.forEach(({tag,count})=>{ const f=(count-min)/Math.max(1,(max-min)); const size=0.85+f*0.9; const el=document.createElement('span'); el.className='tag cursor-pointer'; el.style.fontSize=size+'rem'; el.textContent='#'+tag; el.onclick = ()=> filterByTag(tag); box.append(el); });
+async function loadUsers(){
+  const r=await api('/api/users'); const users=await r.json();
+  const box=document.getElementById('list-users'); box.innerHTML='';
+  users.forEach(u=>{
+    const isMe = STATE.user && u.id===STATE.user.id;
+    const subscribed = STATE.user && (STATE.user.subscriptions||[]).includes(u.id);
+    const card = el(`<div class="card bg-gray-900 rounded-2xl p-4 border border-gray-800 flex items-center justify-between">
+      <div><div class="font-semibold">${escapeHtml(u.username)}</div>${isMe?'<div class="text-xs text-gray-500">это вы</div>':''}</div>
+      <div>${(!STATE.user||isMe)?'':`<button class="px-3 py-1 rounded-xl bg-gray-800 hover:bg-gray-700" onclick="toggleSubscribe('${u.id}')">${subscribed?'Отписаться':'Подписаться'}</button>`}</div>
+    </div>`);
+    box.appendChild(card);
+  });
+}
+
+async function loadRequests(){
+  const r=await api('/api/requests'); const list=await r.json();
+  const box=document.getElementById('list-requests'); box.innerHTML='';
+  if(!list.length){ box.innerHTML='<div class="text-gray-400">Нет запросов</div>'; return; }
+  list.forEach(rq=>{
+    const card=el(`<div class="card bg-gray-900 rounded-2xl p-4 border border-gray-800 flex items-center justify-between">
+      <div><div class="font-semibold">${escapeHtml(rq.fromUser)} хочет доступ</div>
+      <div class="text-sm text-gray-400">к посту: ${escapeHtml(rq.postTitle)}</div></div>
+      <div class="flex gap-2">
+        <button class="px-3 py-1 rounded-xl bg-green-600 hover:bg-green-500" onclick="approveReq('${rq.id}')">Одобрить</button>
+        <button class="px-3 py-1 rounded-xl bg-red-600 hover:bg-red-500" onclick="rejectReq('${rq.id}')">Отклонить</button>
+      </div></div>`);
+    box.appendChild(card);
+  });
+}
+
+async function toggleSubscribe(targetId){
+  if(!STATE.token){ alert('Войдите, чтобы подписываться'); return; }
+  const subscribed=(STATE.user.subscriptions||[]).includes(targetId);
+  const url=subscribed?'/api/unsubscribe':'/api/subscribe';
+  const r=await api(url,{method:'POST', body: JSON.stringify({targetId})}); const d=await r.json();
+  if(d.success){ STATE.user.subscriptions=d.subscriptions; localStorage.setItem('user', JSON.stringify(STATE.user));
+    const active=document.querySelector('main section:not(.hidden)')?.id||'section-public';
+    if(active==='section-users') await loadUsers();
+    if(active==='section-feed') await loadFeed();
+    if(active==='section-public') await loadPublic();
+  } else alert(d.error||'Ошибка подписки');
+}
+async function requestAccess(postId){
+  if(!STATE.token){ alert('Войдите, чтобы запрашивать доступ'); return; }
+  const r=await api(`/api/posts/${postId}/request-access`,{method:'POST'}); const d=await r.json();
+  if(d.success){ alert('Запрос отправлен автору'); } else alert(d.error||'Ошибка запроса');
+}
+async function startEdit(postId){
+  const title=prompt('Новый заголовок?'); if(title===null) return;
+  const content=prompt('Новый текст?'); if(content===null) return;
+  const tags=prompt('Теги через запятую?')||'';
+  const visibility=confirm('Сделать пост публичным? ОК=Публичный, Отмена=По запросу')?'public':'request';
+  const r=await api(`/api/posts/${postId}`,{method:'PUT', body: JSON.stringify({title,content,tags,visibility})}); const d=await r.json();
+  if(d.success){ const active=document.querySelector('main section:not(.hidden)')?.id||'section-public';
+    if(active==='section-mine') await loadMine(); if(active==='section-feed') await loadFeed(); if(active==='section-public') await loadPublic();
+  } else alert(d.error||'Ошибка редактирования');
+}
+async function deletePost(postId){
+  if(!confirm('Удалить пост?')) return;
+  const r=await api(`/api/posts/${postId}`,{method:'DELETE'}); const d=await r.json();
+  if(d.success){ const active=document.querySelector('main section:not(.hidden)')?.id||'section-public';
+    if(active==='section-mine') await loadMine(); if(active==='section-feed') await loadFeed(); if(active==='section-public') await loadPublic();
+  } else alert(d.error||'Ошибка удаления');
+}
+async function addComment(postId){
+  const input=document.getElementById(`cmt-${postId}`); const text=input.value.trim(); if(!text) return;
+  const r=await api(`/api/posts/${postId}/comments`,{method:'POST', body: JSON.stringify({text})}); const d=await r.json();
+  if(d.success){ input.value=''; await loadComments(postId); } else alert(d.error||'Ошибка комментария');
+}
+async function loadComments(postId){
+  const r=await api(`/api/posts/${postId}/comments`); const list=await r.json();
+  const box=document.getElementById(`cmts-${postId}`); box.innerHTML='';
+  if(Array.isArray(list)){ list.forEach(c=>{ box.appendChild(el(`<div class="bg-gray-800 rounded-xl p-2"><span class="text-purple-300">${escapeHtml(c.username)}:</span> ${escapeHtml(c.text)}</div>`)); }); }
+}
+async function approveReq(id){ const r=await api(`/api/requests/${id}/approve`,{method:'POST'}); const d=await r.json(); if(d.success){ await loadRequests(); } else alert(d.error||'Ошибка'); }
+async function rejectReq(id){ const r=await api(`/api/requests/${id}/reject`,{method:'POST'}); const d=await r.json(); if(d.success){ await loadRequests(); } else alert(d.error||'Ошибка'); }
+
+window.addEventListener('DOMContentLoaded', ()=>{ renderAuthArea(); document.getElementById('tab-public').click(); });
+
+
+// Загрузка подписок
+async function loadSubscriptions() {
+  const res = await fetch('/subscriptions', { headers: authHeader() });
+  if (res.ok) {
+    const subs = await res.json();
+    renderPosts(subs);
   }
-  async function filterByTag(tag){
-    document.querySelectorAll('nav .tab').forEach(b=>b.classList.remove('active'));
-    const posts = await api('/api/posts/by-tag/'+encodeURIComponent(tag));
-    const list = document.getElementById('list'); list.innerHTML = `<div class=\"text-sm text-gray-400 mb-2\">Фильтр по тегу: #${tag}</div>`;
+}
+
+// Обработчик кнопки "Подписки"
+document.getElementById('subscriptionsBtn').addEventListener('click', loadSubscriptions);
+
+// Поиск по тегам
+document.getElementById('tagSearch').addEventListener('input', async (e) => {
+  const tag = e.target.value.trim();
+  if (!tag) return loadPosts();
+  const res = await fetch('/posts?tag=' + encodeURIComponent(tag), { headers: authHeader() });
+  if (res.ok) {
+    const posts = await res.json();
     renderPosts(posts);
   }
-
-  async function loadSubsBox(){
-    const box = document.getElementById('subsList'); box.innerHTML='';
-    if(!state.user){ box.innerHTML = '<div class=\"text-sm text-gray-500\">Нужен вход</div>'; return; }
-    const subs = await api('/api/subscriptions/list');
-    if(!subs || !subs.length){ box.innerHTML = '<div class=\"text-sm text-gray-500\">Пусто</div>'; return; }
-    subs.forEach(u=>{ const row = document.createElement('div'); row.className='flex items-center justify-between'; row.innerHTML=`<div>@${u.username}</div>`; const btn=document.createElement('button'); btn.className='text-xs underline'; btn.textContent='Отписаться'; btn.onclick = async()=>{ await api('/api/unsubscribe',{method:'POST', body:JSON.stringify({ targetUserId: u.id })}); loadSubsBox(); if(state.currentTab==='subs') selectTab('subs'); }; row.append(btn); box.append(row); });
-  }
-
-  (async function init(){
-    const t = localStorage.getItem('token'); if(t){ state.token = t; const me = await api('/api/me'); if(me && me.id) state.user = me; else { localStorage.removeItem('token'); state.token = null; } }
-    setAuthUI(); selectTab('public'); refreshTagCloud(); loadSubsBox();
-  })();
-
 });

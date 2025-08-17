@@ -1,7 +1,6 @@
 {
-  "name": "social_app_v4",
+  "name": "blog_tailwind_json_v2",
   "version": "1.0.0",
-  "private": true,
   "type": "module",
   "main": "server.js",
   "scripts": {
