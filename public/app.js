@@ -1,4 +1,3 @@
-
 let STATE = {
   token: localStorage.getItem('token') || '',
   user: JSON.parse(localStorage.getItem('user') || 'null')
@@ -30,14 +29,14 @@ function renderAuthArea() {
   const chip = document.getElementById('userChip');
   const chipName = document.getElementById('chipName');
   if (STATE.user && STATE.token) {
-    btnLogin.classList.add('hidden');
-    btnRegister.classList.add('hidden');
-    chip.classList.remove('hidden');
-    chipName.textContent = STATE.user.username;
+    btnLogin?.classList.add('hidden');
+    btnRegister?.classList.add('hidden');
+    chip?.classList.remove('hidden');
+    if (chipName) chipName.textContent = STATE.user.username;
   } else {
-    btnLogin.classList.remove('hidden');
-    btnRegister.classList.remove('hidden');
-    chip.classList.add('hidden');
+    btnLogin?.classList.remove('hidden');
+    btnRegister?.classList.remove('hidden');
+    chip?.classList.add('hidden');
   }
 }
 
@@ -63,14 +62,16 @@ async function doLogout() {
   selectTab('public');
 }
 
-document.getElementById('tab-public').addEventListener('click', () => selectTab('public'));
-document.getElementById('tab-feed').addEventListener('click', () => selectTab('feed'));
-document.getElementById('tab-mine').addEventListener('click', () => selectTab('mine'));
-document.getElementById('tab-users').addEventListener('click', () => selectTab('users'));
-document.getElementById('tab-requests').addEventListener('click', () => selectTab('requests'));
-document.getElementById('btn-login').addEventListener('click', () => showModal('modal-login'));
-document.getElementById('btn-register').addEventListener('click', () => showModal('modal-register'));
-document.getElementById('btn-logout').addEventListener('click', doLogout);
+// Навигация
+const byId = (id) => document.getElementById(id);
+byId('tab-public')?.addEventListener('click', () => selectTab('public'));
+byId('tab-feed')?.addEventListener('click', () => selectTab('feed'));
+byId('tab-mine')?.addEventListener('click', () => selectTab('mine'));
+byId('tab-users')?.addEventListener('click', () => selectTab('users'));
+byId('tab-requests')?.addEventListener('click', () => selectTab('requests'));
+byId('btn-login')?.addEventListener('click', () => showModal('modal-login'));
+byId('btn-register')?.addEventListener('click', () => showModal('modal-register'));
+byId('btn-logout')?.addEventListener('click', doLogout);
 
 async function selectTab(name) {
   hideAllSections();
@@ -90,12 +91,15 @@ async function selectTab(name) {
 }
 
 function el(html) { const d=document.createElement('div'); d.innerHTML=html; return d.firstElementChild; }
-function escapeHtml(s){ return String(s).replaceAll('&','&amp;').replaceAll('<','&lt;').replaceAll('>','&gt;'); }
+function escapeHtml(s){
+  return String(s).replace(/[&<>"']/g, m => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;','\'':'&#39;'}[m]));
+}
 
 function renderPosts(containerId, posts) {
   const container = document.getElementById(containerId);
+  if (!container) return;
   container.innerHTML='';
-  if (!posts.length) { container.appendChild(el('<div class=\"text-gray-400\">Нет постов</div>')); return; }
+  if (!posts.length) { container.appendChild(el('<div class="text-gray-400">Нет постов</div>')); return; }
   posts.forEach(p => {
     const canEdit = STATE.user && p.authorId === STATE.user.id;
     const canRequest = STATE.user && p.visibility === 'request' && p.authorId !== STATE.user.id && !(p.allowedUsers||[]).includes(STATE.user.id);
@@ -104,14 +108,14 @@ function renderPosts(containerId, posts) {
       <article class="card bg-gray-900 rounded-2xl p-5 shadow border border-gray-800">
         <div class="flex items-center justify-between mb-2">
           <h3 class="text-xl font-semibold text-purple-400">${escapeHtml(p.title)}</h3>
-          <div class="text-sm text-gray-400">${new Date(p.createdAt).toLocaleString()}</div>
+          <div class="text-sm text-gray-400">${p.createdAt ? new Date(p.createdAt).toLocaleString() : ''}</div>
         </div>
-        <div class="text-gray-200 whitespace-pre-wrap mb-3">${escapeHtml(p.content)}</div>
+        <div class="text-gray-200 whitespace-pre-wrap mb-3">${escapeHtml(p.content || '')}</div>
         <div class="flex flex-wrap gap-2 mb-3">
           ${(p.tags||[]).map(t => `<span class="px-2 py-0.5 rounded-lg bg-gray-800 text-xs border border-gray-700">#${escapeHtml(t)}</span>`).join('')}
         </div>
         <div class="flex items-center justify-between">
-          <div class="text-sm text-gray-400">Автор: <span class="text-gray-200">${escapeHtml(p.author)}</span> ${p.visibility==='request' ? '<span class="ml-2 text-xs px-2 py-0.5 rounded bg-amber-600/20 text-amber-300 border border-amber-700">по запросу</span>':''}</div>
+          <div class="text-sm text-gray-400">Автор: <span class="text-gray-200">${escapeHtml(p.author || '')}</span> ${p.visibility==='request' ? '<span class="ml-2 text-xs px-2 py-0.5 rounded bg-amber-600/20 text-amber-300 border border-amber-700">по запросу</span>':''}</div>
           <div class="flex items-center gap-2">
             ${STATE.user && (p.authorId !== STATE.user.id) ? `<button class="px-3 py-1 rounded-xl bg-gray-800 hover:bg-gray-700" onclick="toggleSubscribe('${p.authorId}')">${subscribed?'Отписаться':'Подписаться'}</button>`:''}
             ${canRequest ? `<button class="px-3 py-1 rounded-xl bg-blue-600 hover:bg-blue-500" onclick="requestAccess('${p.id}')">Запросить доступ</button>`:''}
@@ -140,25 +144,30 @@ async function loadPublic() {
 }
 
 async function loadFeed(){ const r=await api('/api/posts/feed'); const p=await r.json(); renderPosts('list-feed',p); }
+
 async function loadMine(){
   await loadMyPostsList();
-  document.getElementById('form-create').onsubmit = async (e) => {
-    e.preventDefault();
-    const title = document.getElementById('post-title').value.trim();
-    const content = document.getElementById('post-content').value.trim();
-    const tags = document.getElementById('post-tags').value.split(',').map(s=>s.trim()).filter(Boolean);
-    const visibility = document.querySelector('input[name="visibility"]:checked').value;
-    const res = await api('/api/posts', { method:'POST', body: JSON.stringify({ title, content, tags, visibility }) });
-    const data = await res.json();
-    if (data.success) {
-      document.getElementById('post-title').value='';
-      document.getElementById('post-content').value='';
-      document.getElementById('post-tags').value='';
-      await loadMyPostsList();
-      if (visibility==='public') await loadPublic();
-    } else alert(data.error || 'Ошибка создания');
-  };
+  const form = document.getElementById('form-create');
+  if (form) {
+    form.onsubmit = async (e) => {
+      e.preventDefault();
+      const title = document.getElementById('post-title').value.trim();
+      const content = document.getElementById('post-content').value.trim();
+      const tags = document.getElementById('post-tags').value.split(',').map(s=>s.trim()).filter(Boolean);
+      const visibility = document.querySelector('input[name="visibility"]:checked').value;
+      const res = await api('/api/posts', { method:'POST', body: JSON.stringify({ title, content, tags, visibility }) });
+      const data = await res.json();
+      if (data.success) {
+        document.getElementById('post-title').value='';
+        document.getElementById('post-content').value='';
+        document.getElementById('post-tags').value='';
+        await loadMyPostsList();
+        if (visibility==='public') await loadPublic();
+      } else alert(data.error || 'Ошибка создания');
+    };
+  }
 }
+
 async function loadMyPostsList(){
   const rPub = await api('/api/posts/public'); let posts = await rPub.json();
   if (STATE.user && STATE.token) {
@@ -172,7 +181,7 @@ async function loadMyPostsList(){
 
 async function loadUsers(){
   const r=await api('/api/users'); const users=await r.json();
-  const box=document.getElementById('list-users'); box.innerHTML='';
+  const box=document.getElementById('list-users'); if (!box) return; box.innerHTML='';
   users.forEach(u=>{
     const isMe = STATE.user && u.id===STATE.user.id;
     const subscribed = STATE.user && (STATE.user.subscriptions||[]).includes(u.id);
@@ -186,7 +195,7 @@ async function loadUsers(){
 
 async function loadRequests(){
   const r=await api('/api/requests'); const list=await r.json();
-  const box=document.getElementById('list-requests'); box.innerHTML='';
+  const box=document.getElementById('list-requests'); if (!box) return; box.innerHTML='';
   if(!list.length){ box.innerHTML='<div class="text-gray-400">Нет запросов</div>'; return; }
   list.forEach(rq=>{
     const card=el(`<div class="card bg-gray-900 rounded-2xl p-4 border border-gray-800 flex items-center justify-between">
@@ -241,35 +250,33 @@ async function addComment(postId){
 }
 async function loadComments(postId){
   const r=await api(`/api/posts/${postId}/comments`); const list=await r.json();
-  const box=document.getElementById(`cmts-${postId}`); box.innerHTML='';
+  const box=document.getElementById(`cmts-${postId}`); if (!box) return; box.innerHTML='';
   if(Array.isArray(list)){ list.forEach(c=>{ box.appendChild(el(`<div class="bg-gray-800 rounded-xl p-2"><span class="text-purple-300">${escapeHtml(c.username)}:</span> ${escapeHtml(c.text)}</div>`)); }); }
 }
 async function approveReq(id){ const r=await api(`/api/requests/${id}/approve`,{method:'POST'}); const d=await r.json(); if(d.success){ await loadRequests(); } else alert(d.error||'Ошибка'); }
 async function rejectReq(id){ const r=await api(`/api/requests/${id}/reject`,{method:'POST'}); const d=await r.json(); if(d.success){ await loadRequests(); } else alert(d.error||'Ошибка'); }
 
-window.addEventListener('DOMContentLoaded', ()=>{ renderAuthArea(); document.getElementById('tab-public').click(); });
-
-
-// Загрузка подписок
+// ===== Подписки (кнопка) =====
 async function loadSubscriptions() {
-  const res = await fetch('/subscriptions', { headers: authHeader() });
+  if (!STATE.token) { alert('Войдите, чтобы увидеть подписки'); return; }
+  const res = await api('/api/posts/feed');
   if (res.ok) {
     const subs = await res.json();
-    renderPosts(subs);
+    renderPosts('list-feed', subs);
+  } else {
+    alert('Не удалось загрузить ленту подписок');
   }
 }
+const subsBtn = document.getElementById('subscriptionsBtn');
+if (subsBtn) subsBtn.addEventListener('click', loadSubscriptions);
 
-// Обработчик кнопки "Подписки"
-document.getElementById('subscriptionsBtn').addEventListener('click', loadSubscriptions);
-
-// 🔎 Поиск по тегу (публичные посты)
+// ===== Поиск по тегу (публичные посты) =====
 function getCurrentUserId() {
   if (window.STATE && STATE.user && STATE.user.id) return STATE.user.id;
   if (window.currentUser && currentUser.userId) return currentUser.userId;
   return '';
 }
 
-// 🔎 Поиск по тегу (публичные посты)
 async function searchByTag() {
   try {
     const input = document.getElementById('searchTag');
@@ -277,24 +284,18 @@ async function searchByTag() {
     const tag = (input.value || '').trim();
     const userId = getCurrentUserId();
 
-    // Пустой запрос — показать обычный список публичных
     if (!tag) {
-      const r = await fetch(`/api/posts/public?userId=${encodeURIComponent(userId)}`);
+      const r = await api(`/api/posts/public?userId=${encodeURIComponent(userId)}`);
       if (!r.ok) throw new Error(`HTTP ${r.status}`);
       const posts = await r.json();
-      if (typeof window.renderPosts === 'function') {
-        window.renderPosts('list-public', posts);
-      } else {
-        renderPublicFallback(posts);
-      }
+      renderPosts('list-public', posts);
       return;
     }
 
-    const r = await fetch(`/api/posts/search?tag=${encodeURIComponent(tag)}&userId=${encodeURIComponent(userId)}`, {
+    const r = await api(`/api/posts/search?tag=${encodeURIComponent(tag)}&userId=${encodeURIComponent(userId)}`, {
       headers: { 'Accept': 'application/json' },
     });
 
-    // Если на бэке нет маршрута/ошибка — будет не-OK
     if (!r.ok) {
       const text = await r.text().catch(() => '');
       console.error('Search failed:', r.status, text);
@@ -303,41 +304,15 @@ async function searchByTag() {
     }
 
     const posts = await r.json();
-    if (typeof window.renderPosts === 'function') {
-      window.renderPosts('list-public', posts);
-    } else {
-      renderPublicFallback(posts);
-    }
+    renderPosts('list-public', posts);
   } catch (e) {
     console.error('searchByTag error', e);
     alert('Ошибка поиска. Проверьте консоль.');
   }
 }
 
-// Фолбэк-рендер, window.renderPosts
-function renderPublicFallback(posts) {
-  const box = document.getElementById('list-public');
-  if (!box) return;
-  box.innerHTML = posts.map(p => `
-    <article class="card bg-gray-900 border border-gray-800 rounded-2xl p-4">
-      <h3 class="text-lg font-semibold text-purple-400 mb-2">${escapeHtml(p.title || '')}</h3>
-      <p class="text-gray-200 mb-3">${escapeHtml(p.content || '')}</p>
-      <div class="flex flex-wrap gap-2">
-        ${(p.tags || []).map(t => `<span class="px-2 py-1 rounded-lg bg-gray-800 text-xs">${escapeHtml(t)}</span>`).join('')}
-      </div>
-    </article>
-  `).join('');
-}
-
-// Простая экранизация, чтобы не сломать верстку
-function escapeHtml(s) {
-  return String(s).replace(/[&<>"']/g, m => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m]));
-}
-
-// Сделать доступной из HTML-атрибута onclick
 window.searchByTag = searchByTag;
 
-// (не обязательно) запуск по Enter
 const tagInputEl = document.getElementById('searchTag');
 if (tagInputEl) {
   tagInputEl.addEventListener('keydown', (e) => {
@@ -347,3 +322,5 @@ if (tagInputEl) {
     }
   });
 }
+
+window.addEventListener('DOMContentLoaded', ()=>{ renderAuthArea(); document.getElementById('tab-public')?.click(); });
