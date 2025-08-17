@@ -136,26 +136,36 @@ app.delete('/api/posts/:id', requireAuth, (req, res) => {
   res.json({ success: true });
 });
 
-// Публичная лента
+// Публичная лента (все посты)
 app.get('/api/posts/public', (req, res) => {
+  const userId = req.query.userId; // передаём в запросе, кто смотрит (или null)
+
   const posts = data.posts.map(p => {
     if (p.visibility === 'public') {
-      // Обычный публичный пост
       return p;
-    } else {
-      // Закрытый пост: скрываем контент, но показываем заглушку
-      return {
-        id: p.id,
-        title: p.title,
-        content: "🔒 Закрытый пост. Нажмите «Запросить доступ».",
-        authorId: p.authorId,
-        author: p.author,
-        tags: p.tags || [],
-        visibility: p.visibility,
-        isHidden: true
-      };
     }
+
+    // Если пост скрытый
+    if (p.authorId === userId) {
+      // Автор видит свои скрытые посты
+      return p;
+    }
+
+    // Остальные видят только заглушку
+    return {
+      id: p.id,
+      title: "🔒 Закрытый пост. Нажмите «Запросить доступ».",
+      content: "🔒 Закрытый пост. Нажмите «Запросить доступ».",
+      authorId: p.authorId,
+      author: p.author,
+      tags: p.tags || [],
+      visibility: p.visibility,
+      isHidden: true
+    };
   });
+
+  res.json(posts);
+});
 
   res.json(posts);
 });
