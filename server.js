@@ -367,13 +367,20 @@ app.get('/api/feed', requireAuth, (req, res) => {
   res.json(subscribedPosts);
 });
 
-// =========================
-// Фильтрация по тегам
-// =========================
-app.get('/api/posts/tag/:tag', (req, res) => {
-  const tag = req.params.tag.toLowerCase();
-  const filtered = data.posts.filter(p =>
-    p.tags && p.tags.some(t => t.toLowerCase() === tag)
-  );
+// Поиск и фильтрация по тегам
+app.get('/api/posts/search', (req, res) => {
+  const { tag, userId } = req.query;
+  if (!tag) return res.json([]);
+
+  const filtered = data.posts.filter(p => {
+    // Проверка доступа (как в public)
+    const canView = 
+      p.visibility === 'public' ||
+      p.authorId === userId ||
+      (p.allowedUsers && p.allowedUsers.includes(userId));
+
+    return canView && p.tags && p.tags.includes(tag);
+  });
+
   res.json(filtered);
 });
