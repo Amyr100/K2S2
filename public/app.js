@@ -84,7 +84,7 @@ async function selectTab(name) {
     show('section-mine'); await loadMine();
   } else if (name === 'users') {
   if (!STATE.token) { alert('Войдите, чтобы увидеть подписки'); return selectTab('public'); }
-  show('section-users'); 
+  show('section-users');
   await loadSubscriptionsUsers();
   } else if (name === 'requests') {
     if (!STATE.token) { alert('Войдите, чтобы модераировать запросы'); return selectTab('public'); }
@@ -181,19 +181,41 @@ async function loadMyPostsList(){
   renderPosts('list-mine', posts);
 }
 
-async function loadUsers(){
-  const r=await api('/api/users'); const users=await r.json();
-  const box=document.getElementById('list-users'); if (!box) return; box.innerHTML='';
-  users.forEach(u=>{
-    const isMe = STATE.user && u.id===STATE.user.id;
-    const subscribed = STATE.user && (STATE.user.subscriptions||[]).includes(u.id);
-    const card = el(`<div class="card bg-gray-900 rounded-2xl p-4 border border-gray-800 flex items-center justify-between">
-      <div><div class="font-semibold">${escapeHtml(u.username)}</div>${isMe?'<div class="text-xs text-gray-500">это вы</div>':''}</div>
-      <div>${(!STATE.user||isMe)?'':`<button class="px-3 py-1 rounded-xl bg-gray-800 hover:bg-gray-700" onclick="toggleSubscribe('${u.id}')">${subscribed?'Отписаться':'Подписаться'}</button>`}</div>
-    </div>`);
+async function loadSubscriptionsUsers() {
+  const box = document.getElementById('list-users'); // переиспользуем существующий контейнер
+  if (!box) return;
+  box.innerHTML = '';
+
+  if (!STATE.token || !STATE.user) {
+    box.innerHTML = '<div class="text-gray-400">Войдите, чтобы увидеть подписки</div>';
+    return;
+  }
+
+  // Берём всех пользователей и фильтруем только тех, на кого подписан текущий пользователь
+  const r = await api('/api/users');
+  const users = await r.json(); // [{id, username}]
+  const subs = new Set(STATE.user.subscriptions || []);
+  const mySubs = users.filter(u => subs.has(u.id) && u.id !== STATE.user.id);
+
+  if (!mySubs.length) {
+    box.innerHTML = '<div class="text-gray-400">У вас пока нет подписок</div>';
+    return;
+  }
+
+  mySubs.forEach(u => {
+    const card = el(`
+      <div class="card bg-gray-900 rounded-2xl p-4 border border-gray-800 flex items-center justify-between">
+        <div><div class="font-semibold">${escapeHtml(u.username)}</div></div>
+        <div>
+          <button class="px-3 py-1 rounded-xl bg-gray-800 hover:bg-gray-700" onclick="toggleSubscribe('${u.id}')">Отписаться</button>
+        </div>
+      </div>
+    `);
     box.appendChild(card);
   });
 }
+
+
 
 async function loadRequests(){
   const r=await api('/api/requests'); const list=await r.json();
@@ -218,13 +240,12 @@ async function toggleSubscribe(targetId){
   const r=await api(url,{method:'POST', body: JSON.stringify({targetId})}); const d=await r.json();
   if(d.success){ STATE.user.subscriptions=d.subscriptions; localStorage.setItem('user', JSON.stringify(STATE.user));
     const active=document.querySelector('main section:not(.hidden)')?.id||'section-public';
-    if(active==='section-users') await loadUsers();
+    if (active==='section-users') await loadSubscriptionsUsers();
     if(active==='section-feed') await loadFeed();
     if(active==='section-public') await loadPublic();
-    if (document.querySelector('#section-users') && !document.querySelector('#section-users').classList.contains('hidden')) {
-  await loadSubscriptionsUsers();
   } else alert(d.error||'Ошибка подписки');
 }
+
 async function requestAccess(postId){
   if(!STATE.token){ alert('Войдите, чтобы запрашивать доступ'); return; }
   const r=await api(`/api/posts/${postId}/request-access`,{method:'POST'}); const d=await r.json();
@@ -276,42 +297,6 @@ if (subsBtn) subsBtn.addEventListener('click', loadSubscriptions);
 
 const tabUsersEl = document.getElementById('tab-users');
 if (tabUsersEl) tabUsersEl.textContent = 'Подписки';
-
-async function loadSubscriptionsUsers(){
-  const box = document.getElementById('list-users'); // переиспользуем контейнер раздела
-  if (!box) return;
-  box.innerHTML = '';
-
-  if (!STATE.token || !STATE.user) {
-    box.innerHTML = '<div class="text-gray-400">Войдите, чтобы увидеть подписки</div>';
-    return;
-  }
-
-  // получаем всех пользователей и отфильтровываем только тех, на кого оформлена подписка
-  const r = await api('/api/users'); 
-  const users = await r.json(); // [{id, username}]
-  const subs = new Set(STATE.user.subscriptions || []);
-  const mySubs = users.filter(u => subs.has(u.id) && u.id !== (STATE.user?.id));
-
-  if (!mySubs.length) {
-    box.innerHTML = '<div class="text-gray-400">У вас пока нет подписок</div>';
-    return;
-  }
-
-  mySubs.forEach(u => {
-    const card = el(`
-      <div class="card bg-gray-900 rounded-2xl p-4 border border-gray-800 flex items-center justify-between">
-        <div>
-          <div class="font-semibold">${escapeHtml(u.username)}</div>
-        </div>
-        <div>
-          <button class="px-3 py-1 rounded-xl bg-gray-800 hover:bg-gray-700" onclick="toggleSubscribe('${u.id}')">Отписаться</button>
-        </div>
-      </div>
-    `);
-    box.appendChild(card);
-  });
-}
 
 // ===== Поиск по тегу (публичные посты) =====
 function getCurrentUserId() {
