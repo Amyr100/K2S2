@@ -361,7 +361,7 @@ app.get('/api/feed', requireAuth, (req, res) => {
   if (!user) return res.status(404).json({ error: 'User not found' });
 
   const subscribedPosts = data.posts.filter(p =>
-    (user.subscriptions || []).includes(p.userId)
+    (user.subscriptions || []).includes(p.authorId)
   );
 
   res.json(subscribedPosts);
