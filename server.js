@@ -1,10 +1,10 @@
-
 import express from 'express';
 import fs from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
 import bcrypt from 'bcryptjs';
 import { v4 as uuidv4 } from 'uuid';
+import cors from 'cors';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -12,8 +12,6 @@ const __dirname = path.dirname(__filename);
 const app = express();
 app.use(express.json({ limit: '1mb' }));
 app.use(express.urlencoded({ extended: true }));
-
-import cors from 'cors';
 app.use(cors());
 
 const DATA_FILE = path.join(__dirname, 'data.json');
@@ -26,7 +24,7 @@ function loadData() {
       data.users = data.users || [];
       data.posts = data.posts || [];
       data.accessRequests = data.accessRequests || [];
-      for (const u of data.users) { u.subscriptions = u.subscriptions || []; }
+      for (const u of data.users) u.subscriptions = u.subscriptions || [];
       for (const p of data.posts) {
         p.tags = p.tags || [];
         p.allowedUsers = p.allowedUsers || [];
@@ -55,7 +53,9 @@ function requireAuth(req, res, next) {
 
 app.use(express.static(path.join(__dirname, 'public')));
 
+// =========================
 // Auth
+// =========================
 app.post('/api/register', async (req, res) => {
   const { username, password } = req.body;
   if (!username || !password) return res.status(400).json({ error: 'Missing fields' });
@@ -86,12 +86,16 @@ app.post('/api/logout', requireAuth, (req, res) => {
   res.json({ success: true });
 });
 
+// =========================
 // Users
+// =========================
 app.get('/api/users', (req, res) => {
   res.json(data.users.map(u => ({ id: u.id, username: u.username })));
 });
 
+// =========================
 // Posts CRUD
+// =========================
 app.post('/api/posts', requireAuth, (req, res) => {
   const { title, content, tags = [], visibility = 'public' } = req.body;
   if (!title || !content) return res.status(400).json({ error: 'Missing fields' });
@@ -136,7 +140,9 @@ app.delete('/api/posts/:id', requireAuth, (req, res) => {
   res.json({ success: true });
 });
 
-// Публичная лента (все посты)
+// =========================
+// Public and feed
+// =========================
 app.get('/api/posts/public', (req, res) => {
   const userId = req.query.userId;
 
@@ -146,15 +152,12 @@ app.get('/api/posts/public', (req, res) => {
       p.authorId === userId ||
       (p.allowedUsers && p.allowedUsers.includes(userId))
     ) {
-      // Автор, публичный пост или разрешённый пользователь видят всё
       return p;
     }
-
-    // Остальные видят заглушку
     return {
       id: p.id,
-      title: "🔒 Закрытый пост. Нажмите «Запросить доступ».",
-      content: "🔒 Закрытый пост. Нажмите «Запросить доступ».",
+      title: '🔒 Закрытый пост. Нажмите «Запросить доступ».',
+      content: '🔒 Закрытый пост. Нажмите «Запросить доступ».',
       authorId: p.authorId,
       author: p.author,
       tags: p.tags || [],
@@ -180,7 +183,28 @@ app.get('/api/posts/feed', requireAuth, (req, res) => {
   res.json(list);
 });
 
+// =========================
+// Subscriptions (single source of truth)
+// =========================
+app.post('/api/subscribe', requireAuth, (req, res) => {
+  const { targetId } = req.body;
+  const target = data.users.find(u => u.id === targetId);
+  if (!target) return res.status(404).json({ error: 'User not found' });
+  if (!req.user.subscriptions.includes(targetId)) req.user.subscriptions.push(targetId);
+  saveData();
+  res.json({ success: true, subscriptions: req.user.subscriptions });
+});
+
+app.post('/api/unsubscribe', requireAuth, (req, res) => {
+  const { targetId } = req.body;
+  req.user.subscriptions = (req.user.subscriptions || []).filter(id => id !== targetId);
+  saveData();
+  res.json({ success: true, subscriptions: req.user.subscriptions });
+});
+
+// =========================
 // Access requests
+// =========================
 app.post('/api/posts/:id/request-access', requireAuth, (req, res) => {
   const post = data.posts.find(p => p.id === req.params.id);
   if (!post) return res.status(404).json({ error: 'Not found' });
@@ -224,6 +248,7 @@ app.post('/api/requests/:id/approve', requireAuth, (req, res) => {
   saveData();
   res.json({ success: true });
 });
+
 app.post('/api/requests/:id/reject', requireAuth, (req, res) => {
   const r = data.accessRequests.find(x => x.id === req.params.id);
   if (!r) return res.status(404).json({ error: 'Not found' });
@@ -233,29 +258,16 @@ app.post('/api/requests/:id/reject', requireAuth, (req, res) => {
   res.json({ success: true });
 });
 
-// Subscriptions
-app.post('/api/subscribe', requireAuth, (req, res) => {
-  const { targetId } = req.body;
-  const target = data.users.find(u => u.id === targetId);
-  if (!target) return res.status(404).json({ error: 'User not found' });
-  if (!req.user.subscriptions.includes(targetId)) req.user.subscriptions.push(targetId);
-  saveData();
-  res.json({ success: true, subscriptions: req.user.subscriptions });
-});
-app.post('/api/unsubscribe', requireAuth, (req, res) => {
-  const { targetId } = req.body;
-  req.user.subscriptions = (req.user.subscriptions || []).filter(id => id !== targetId);
-  saveData();
-  res.json({ success: true, subscriptions: req.user.subscriptions });
-});
-
+// =========================
 // Comments
+// =========================
 function canReadPost(user, post) {
   if (post.visibility === 'public') return true;
   if (!user) return false;
   if (post.authorId === user.id) return true;
   return post.allowedUsers.includes(user.id);
 }
+
 app.get('/api/posts/:id/comments', (req, res) => {
   const post = data.posts.find(p => p.id === req.params.id);
   if (!post) return res.status(404).json({ error: 'Not found' });
@@ -272,6 +284,7 @@ app.get('/api/posts/:id/comments', (req, res) => {
   }
   res.json(post.comments || []);
 });
+
 app.post('/api/posts/:id/comments', requireAuth, (req, res) => {
   const post = data.posts.find(p => p.id === req.params.id);
   if (!post) return res.status(404).json({ error: 'Not found' });
@@ -289,7 +302,9 @@ app.post('/api/posts/:id/comments', requireAuth, (req, res) => {
   res.json({ success: true, comment: c });
 });
 
+// =========================
 // Seed demo data (first run)
+// =========================
 if (data.users.length === 0 && data.posts.length === 0) {
   (async () => {
     const alice = { id: uuidv4(), username: 'alice', passwordHash: await bcrypt.hash('alice', 10), subscriptions: [] };
@@ -319,70 +334,10 @@ if (data.users.length === 0 && data.posts.length === 0) {
   })();
 }
 
-app.get('*', (req, res) => {
-  res.sendFile(path.join(__dirname, 'public', 'index.html'));
-});
-
 const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => console.log('Server listening on http://localhost:' + PORT));
 
-// Подписаться на пользователя
-app.post('/api/subscribe', requireAuth, (req, res) => {
-  const { targetId } = req.body;
-  const user = data.users.find(u => u.id === req.user.id);
-  if (!user) return res.status(404).json({ error: 'User not found' });
-
-  if (!user.subscriptions) user.subscriptions = [];
-  if (!user.subscriptions.includes(targetId)) {
-    user.subscriptions.push(targetId);
-    saveData();
-  }
-
-  res.json({ success: true });
-});
-
-// Отписаться от пользователя
-app.post('/api/unsubscribe', requireAuth, (req, res) => {
-  const { targetId } = req.body;
-  const user = data.users.find(u => u.id === req.user.id);
-  if (!user) return res.status(404).json({ error: 'User not found' });
-
-  user.subscriptions = (user.subscriptions || []).filter(id => id !== targetId);
-  saveData();
-
-  res.json({ success: true });
-});
-
-// =========================
-// Лента по подпискам
-// =========================
-app.get('/api/feed', requireAuth, (req, res) => {
-  const user = data.users.find(u => u.id === req.user.id);
-  if (!user) return res.status(404).json({ error: 'User not found' });
-
-  const subscribedPosts = data.posts.filter(p =>
-    (user.subscriptions || []).includes(p.userId)
-  );
-
-  res.json(subscribedPosts);
-});
-
-// Поиск и фильтрация по тегам
-app.get('/api/posts/search', (req, res) => {
-  const { tag, userId } = req.query;
-
-  const q = String(tag || '').trim().toLowerCase();
-  if (!q) return res.json([]);
-
-  const result = data.posts.filter(p => {
-    const canView =
-      p.visibility === 'public' ||
-      p.authorId === userId ||
-      (Array.isArray(p.allowedUsers) && p.allowedUsers.includes(userId));
-
-    const tags = (p.tags || []).map(t => String(t).trim().toLowerCase());
-    return canView && tags.includes(q);
-  });
-
-  res.json(result);
+// ВАЖНО: catch‑all должен быть ПОСЛЕ всех API-маршрутов
+app.get('*', (req, res) => {
+  res.sendFile(path.join(__dirname, 'public', 'index.html'));
 });
