@@ -262,12 +262,32 @@ async function loadSubscriptions() {
 // Обработчик кнопки "Подписки"
 document.getElementById('subscriptionsBtn').addEventListener('click', loadSubscriptions);
 
-// Поиск по тегам 
+// 🔎 Поиск по тегу (публичные посты)
 async function searchByTag() {
-  const tag = document.getElementById("searchTag").value.trim();
-  if (!tag) return;
+  try {
+    const input = document.getElementById("searchTag");
+    if (!input) return;                         // элемент не найден
+    const tag = input.value.trim();
+    const userId = (window.STATE && STATE.user) ? STATE.user.id : '';
 
-  const res = await fetch(`/api/posts/search?tag=${encodeURIComponent(tag)}&userId=${currentUser?.userId || ''}`);
-  const data = await res.json();
-  renderPosts("posts", data);
+    if (!tag) {
+      // пустой запрос — просто показываем обычный список публичных
+      const r = await fetch(`/api/posts/public?userId=${encodeURIComponent(userId)}`);
+      const p = await r.json();
+      renderPosts('list-public', p);            // ← используй вашу функцию рендера
+      return;
+    }
+
+    const r = await fetch(`/api/posts/search?tag=${encodeURIComponent(tag)}&userId=${encodeURIComponent(userId)}`);
+    if (!r.ok) throw new Error('Search request failed');
+    const p = await r.json();
+    renderPosts('list-public', p);
+  } catch (e) {
+    console.error('searchByTag error', e);
+    alert('Ошибка поиска. Проверьте консоль.');
+  }
 }
+
+// 👇 очень важно: экспортируем в глобальную область,
+// иначе onclick не найдёт функцию
+window.searchByTag = searchByTag;
