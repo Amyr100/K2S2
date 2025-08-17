@@ -262,13 +262,12 @@ async function loadSubscriptions() {
 // Обработчик кнопки "Подписки"
 document.getElementById('subscriptionsBtn').addEventListener('click', loadSubscriptions);
 
-// Поиск по тегам
-document.getElementById('tagSearch').addEventListener('input', async (e) => {
-  const tag = e.target.value.trim();
-  if (!tag) return loadPosts();
-  const res = await fetch('/posts?tag=' + encodeURIComponent(tag), { headers: authHeader() });
-  if (res.ok) {
-    const posts = await res.json();
-    renderPosts(posts);
-  }
-});
+// Поиск по тегам 
+async function searchByTag() {
+  const tag = document.getElementById("searchTag").value.trim();
+  if (!tag) return;
+
+  const res = await fetch(`/api/posts/search?tag=${encodeURIComponent(tag)}&userId=${currentUser?.userId || ''}`);
+  const data = await res.json();
+  renderPosts("posts", data);
+}
