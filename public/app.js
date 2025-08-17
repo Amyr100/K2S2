@@ -41,6 +41,27 @@ function renderAuthArea() {
   }
 }
 
+async function loadPosts() {
+  const res = await fetch(`/api/posts/public?userId=${currentUser?.userId || ''}`);
+  const data = await res.json();
+  const postsDiv = document.getElementById('posts');
+  postsDiv.innerHTML = '';
+
+  data.forEach(post => {
+    const div = document.createElement('div');
+    div.className = 'bg-gray-800 p-6 rounded-2xl shadow-lg mb-4';
+
+    div.innerHTML = `
+      <h3 class='text-xl font-bold text-purple-400 mb-2'>${post.title}</h3>
+      <p class='text-gray-200 mb-2'>${post.content}</p>
+      <p class='text-sm text-gray-400 mb-2'>Tags: ${(post.tags || []).join(', ')}</p>
+    `;
+
+    postsDiv.appendChild(div);
+  });
+}
+
+
 async function doLogin() {
   const username = document.getElementById('login-username').value.trim();
   const password = document.getElementById('login-password').value;
