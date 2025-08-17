@@ -221,6 +221,8 @@ async function toggleSubscribe(targetId){
     if(active==='section-users') await loadUsers();
     if(active==='section-feed') await loadFeed();
     if(active==='section-public') await loadPublic();
+    if (document.querySelector('#section-users') && !document.querySelector('#section-users').classList.contains('hidden')) {
+  await loadSubscriptionsUsers();
   } else alert(d.error||'Ошибка подписки');
 }
 async function requestAccess(postId){
@@ -274,6 +276,42 @@ if (subsBtn) subsBtn.addEventListener('click', loadSubscriptions);
 
 const tabUsersEl = document.getElementById('tab-users');
 if (tabUsersEl) tabUsersEl.textContent = 'Подписки';
+
+async function loadSubscriptionsUsers(){
+  const box = document.getElementById('list-users'); // переиспользуем контейнер раздела
+  if (!box) return;
+  box.innerHTML = '';
+
+  if (!STATE.token || !STATE.user) {
+    box.innerHTML = '<div class="text-gray-400">Войдите, чтобы увидеть подписки</div>';
+    return;
+  }
+
+  // получаем всех пользователей и отфильтровываем только тех, на кого оформлена подписка
+  const r = await api('/api/users'); 
+  const users = await r.json(); // [{id, username}]
+  const subs = new Set(STATE.user.subscriptions || []);
+  const mySubs = users.filter(u => subs.has(u.id) && u.id !== (STATE.user?.id));
+
+  if (!mySubs.length) {
+    box.innerHTML = '<div class="text-gray-400">У вас пока нет подписок</div>';
+    return;
+  }
+
+  mySubs.forEach(u => {
+    const card = el(`
+      <div class="card bg-gray-900 rounded-2xl p-4 border border-gray-800 flex items-center justify-between">
+        <div>
+          <div class="font-semibold">${escapeHtml(u.username)}</div>
+        </div>
+        <div>
+          <button class="px-3 py-1 rounded-xl bg-gray-800 hover:bg-gray-700" onclick="toggleSubscribe('${u.id}')">Отписаться</button>
+        </div>
+      </div>
+    `);
+    box.appendChild(card);
+  });
+}
 
 // ===== Поиск по тегу (публичные посты) =====
 function getCurrentUserId() {
