@@ -368,18 +368,20 @@ app.get('/api/feed', requireAuth, (req, res) => {
 });
 
 // Поиск и фильтрация по тегам
-// GET /api/posts/search?tag=xxx&userId=yyy
 app.get('/api/posts/search', (req, res) => {
   const { tag, userId } = req.query;
-  if (!tag) return res.json([]);
+
+  const q = String(tag || '').trim().toLowerCase();
+  if (!q) return res.json([]);
 
   const result = data.posts.filter(p => {
     const canView =
       p.visibility === 'public' ||
       p.authorId === userId ||
-      (p.allowedUsers && p.allowedUsers.includes(userId));
+      (Array.isArray(p.allowedUsers) && p.allowedUsers.includes(userId));
 
-    return canView && Array.isArray(p.tags) && p.tags.includes(tag);
+    const tags = (p.tags || []).map(t => String(t).trim().toLowerCase());
+    return canView && tags.includes(q);
   });
 
   res.json(result);
