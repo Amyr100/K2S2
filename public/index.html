@@ -35,6 +35,12 @@
   <main class="max-w-5xl mx-auto px-4 py-6">
     <section id="section-public" class="hidden">
       <h2 class="text-2xl font-semibold mb-4">Публичные посты</h2>
+        <!-- 🔍 Поиск по тегам -->
+        <div class="w-full max-w-2xl mb-6 flex space-x-2">
+        <input id="searchTag" class="dark-input flex-1" placeholder="Введите тег для поиска">
+        <button onclick="searchByTag()" class="px-4 py-2 rounded-xl bg-purple-600 hover:bg-purple-500">Поиск</button>
+        </div>
+      <!-- Список постов -->
       <div id="list-public" class="grid gap-4"></div>
     </section>
 
