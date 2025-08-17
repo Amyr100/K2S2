@@ -300,38 +300,54 @@ app.get('*', (req, res) => {
 const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => console.log('Server listening on http://localhost:' + PORT));
 
-// Получить подписки текущего пользователя
-app.get('/subscriptions', auth, (req, res) => {
-  const subs = req.user.subscriptions || [];
-  const visiblePosts = posts.filter(p => subs.includes(p.author));
-  res.json(visiblePosts);
-});
+// Подписаться на пользователя
+app.post('/api/subscribe', requireAuth, (req, res) => {
+  const { targetId } = req.body;
+  const user = data.users.find(u => u.id === req.user.id);
+  if (!user) return res.status(404).json({ error: 'User not found' });
 
-// Подписка на пользователя
-app.post('/subscribe/:username', auth, (req, res) => {
-  const target = req.params.username;
-  if (!req.user.subscriptions) req.user.subscriptions = [];
-  if (!req.user.subscriptions.includes(target)) {
-    req.user.subscriptions.push(target);
+  if (!user.subscriptions) user.subscriptions = [];
+  if (!user.subscriptions.includes(targetId)) {
+    user.subscriptions.push(targetId);
+    saveData();
   }
-  saveData();
-  res.json({ success: true, subscriptions: req.user.subscriptions });
+
+  res.json({ success: true });
 });
 
-// Отписка от пользователя
-app.post('/unsubscribe/:username', auth, (req, res) => {
-  const target = req.params.username;
-  if (!req.user.subscriptions) req.user.subscriptions = [];
-  req.user.subscriptions = req.user.subscriptions.filter(u => u !== target);
+// Отписаться от пользователя
+app.post('/api/unsubscribe', requireAuth, (req, res) => {
+  const { targetId } = req.body;
+  const user = data.users.find(u => u.id === req.user.id);
+  if (!user) return res.status(404).json({ error: 'User not found' });
+
+  user.subscriptions = (user.subscriptions || []).filter(id => id !== targetId);
   saveData();
-  res.json({ success: true, subscriptions: req.user.subscriptions });
+
+  res.json({ success: true });
 });
 
-// Фильтрация постов по тегу
-app.get('/posts', authOptional, (req, res) => {
-  let result = posts;
-  if (req.query.tag) {
-    result = result.filter(p => p.tags && p.tags.includes(req.query.tag));
-  }
-  res.json(result);
+// =========================
+// Лента по подпискам
+// =========================
+app.get('/api/feed', requireAuth, (req, res) => {
+  const user = data.users.find(u => u.id === req.user.id);
+  if (!user) return res.status(404).json({ error: 'User not found' });
+
+  const subscribedPosts = data.posts.filter(p =>
+    (user.subscriptions || []).includes(p.userId)
+  );
+
+  res.json(subscribedPosts);
+});
+
+// =========================
+// Фильтрация по тегам
+// =========================
+app.get('/api/posts/tag/:tag', (req, res) => {
+  const tag = req.params.tag.toLowerCase();
+  const filtered = data.posts.filter(p =>
+    p.tags && p.tags.some(t => t.toLowerCase() === tag)
+  );
+  res.json(filtered);
 });
