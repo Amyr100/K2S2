@@ -138,20 +138,19 @@ app.delete('/api/posts/:id', requireAuth, (req, res) => {
 
 // Публичная лента (все посты)
 app.get('/api/posts/public', (req, res) => {
-  const userId = req.query.userId; // передаём в запросе, кто смотрит (или null)
+  const userId = req.query.userId;
 
   const posts = data.posts.map(p => {
-    if (p.visibility === 'public') {
+    if (
+      p.visibility === 'public' ||
+      p.authorId === userId ||
+      (p.allowedUsers && p.allowedUsers.includes(userId))
+    ) {
+      // Автор, публичный пост или разрешённый пользователь видят всё
       return p;
     }
 
-    // Если пост скрытый
-    if (p.authorId === userId) {
-      // Автор видит свои скрытые посты
-      return p;
-    }
-
-    // Остальные видят только заглушку
+    // Остальные видят заглушку
     return {
       id: p.id,
       title: "🔒 Закрытый пост. Нажмите «Запросить доступ».",
