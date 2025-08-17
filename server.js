@@ -167,9 +167,6 @@ app.get('/api/posts/public', (req, res) => {
   res.json(posts);
 });
 
-  res.json(posts);
-});
-
 app.get('/api/posts/feed', requireAuth, (req, res) => {
   const subs = req.user.subscriptions || [];
   const uid = req.user.id;
