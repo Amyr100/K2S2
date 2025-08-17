@@ -136,8 +136,27 @@ app.delete('/api/posts/:id', requireAuth, (req, res) => {
   res.json({ success: true });
 });
 
+// Публичная лента: видны все посты (и открытые, и закрытые)
 app.get('/api/posts/public', (req, res) => {
-  res.json(data.posts.filter(p => p.visibility === 'public'));
+  const posts = data.posts.map(p => {
+    if (p.isPublic) {
+      // Обычный публичный пост
+      return p;
+    } else {
+      // Закрытый пост: скрываем контент, но показываем заглушку
+      return {
+        id: p.id,
+        title: p.title,
+        content: "🔒 Закрытый пост. Нажмите «Запросить доступ».",
+        userId: p.userId,
+        tags: p.tags || [],
+        isPublic: false,
+        isHidden: true
+      };
+    }
+  });
+
+  res.json(posts);
 });
 
 app.get('/api/posts/feed', requireAuth, (req, res) => {
