@@ -184,6 +184,28 @@ app.get('/api/posts/feed', requireAuth, (req, res) => {
 });
 
 // =========================
+// Search by tag (PUBLIC scope w/ visibility checks)
+// =========================
+app.get('/api/posts/search', (req, res) => {
+  const { tag, userId } = req.query;
+  const q = String(tag || '').trim().toLowerCase();
+  if (!q) return res.json([]);
+
+  const result = data.posts.filter(p => {
+    const canView =
+      p.visibility === 'public' ||
+      p.authorId === userId ||
+      (Array.isArray(p.allowedUsers) && p.allowedUsers.includes(userId));
+    if (!canView) return false;
+
+    const tags = (p.tags || []).map(t => String(t).trim().toLowerCase());
+    return tags.includes(q);
+  });
+
+  res.json(result);
+});
+
+// =========================
 // Subscriptions (single source of truth)
 // =========================
 app.post('/api/subscribe', requireAuth, (req, res) => {
