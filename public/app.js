@@ -83,7 +83,9 @@ async function selectTab(name) {
     if (!STATE.token) { alert('Войдите, чтобы управлять постами'); return selectTab('public'); }
     show('section-mine'); await loadMine();
   } else if (name === 'users') {
-    show('section-users'); await loadUsers();
+  if (!STATE.token) { alert('Войдите, чтобы увидеть подписки'); return selectTab('public'); }
+  show('section-users'); 
+  await loadSubscriptionsUsers();
   } else if (name === 'requests') {
     if (!STATE.token) { alert('Войдите, чтобы модераировать запросы'); return selectTab('public'); }
     show('section-requests'); await loadRequests();
@@ -269,6 +271,9 @@ async function loadSubscriptions() {
 }
 const subsBtn = document.getElementById('subscriptionsBtn');
 if (subsBtn) subsBtn.addEventListener('click', loadSubscriptions);
+
+const tabUsersEl = document.getElementById('tab-users');
+if (tabUsersEl) tabUsersEl.textContent = 'Подписки';
 
 // ===== Поиск по тегу (публичные посты) =====
 function getCurrentUserId() {
