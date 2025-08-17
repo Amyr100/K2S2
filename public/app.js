@@ -153,7 +153,13 @@ function renderPosts(containerId, posts) {
   });
 }
 
-async function loadPublic(){ const r=await api('/api/posts/public'); const p=await r.json(); renderPosts('list-public',p); }
+async function loadPublic() {
+  const userId = STATE.user ? STATE.user.id : '';
+  const r = await api(`/api/posts/public?userId=${encodeURIComponent(userId)}`);
+  const p = await r.json();
+  renderPosts('list-public', p);
+}
+
 async function loadFeed(){ const r=await api('/api/posts/feed'); const p=await r.json(); renderPosts('list-feed',p); }
 async function loadMine(){
   await loadMyPostsList();
