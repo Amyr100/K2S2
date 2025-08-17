@@ -263,31 +263,87 @@ async function loadSubscriptions() {
 document.getElementById('subscriptionsBtn').addEventListener('click', loadSubscriptions);
 
 // 🔎 Поиск по тегу (публичные посты)
+function getCurrentUserId() {
+  if (window.STATE && STATE.user && STATE.user.id) return STATE.user.id;
+  if (window.currentUser && currentUser.userId) return currentUser.userId;
+  return '';
+}
+
+// 🔎 Поиск по тегу (публичные посты)
 async function searchByTag() {
   try {
-    const input = document.getElementById("searchTag");
-    if (!input) return;                         // элемент не найден
-    const tag = input.value.trim();
-    const userId = (window.STATE && STATE.user) ? STATE.user.id : '';
+    const input = document.getElementById('searchTag');
+    if (!input) return;
+    const tag = (input.value || '').trim();
+    const userId = getCurrentUserId();
 
+    // Пустой запрос — показать обычный список публичных
     if (!tag) {
-      // пустой запрос — просто показываем обычный список публичных
       const r = await fetch(`/api/posts/public?userId=${encodeURIComponent(userId)}`);
-      const p = await r.json();
-      renderPosts('list-public', p);            // ← используй вашу функцию рендера
+      if (!r.ok) throw new Error(`HTTP ${r.status}`);
+      const posts = await r.json();
+      if (typeof window.renderPosts === 'function') {
+        window.renderPosts('list-public', posts);
+      } else {
+        renderPublicFallback(posts);
+      }
       return;
     }
 
-    const r = await fetch(`/api/posts/search?tag=${encodeURIComponent(tag)}&userId=${encodeURIComponent(userId)}`);
-    if (!r.ok) throw new Error('Search request failed');
-    const p = await r.json();
-    renderPosts('list-public', p);
+    const r = await fetch(`/api/posts/search?tag=${encodeURIComponent(tag)}&userId=${encodeURIComponent(userId)}`, {
+      headers: { 'Accept': 'application/json' },
+    });
+
+    // Если на бэке нет маршрута/ошибка — будет не-OK
+    if (!r.ok) {
+      const text = await r.text().catch(() => '');
+      console.error('Search failed:', r.status, text);
+      alert(`Ошибка поиска: ${r.status}`);
+      return;
+    }
+
+    const posts = await r.json();
+    if (typeof window.renderPosts === 'function') {
+      window.renderPosts('list-public', posts);
+    } else {
+      renderPublicFallback(posts);
+    }
   } catch (e) {
     console.error('searchByTag error', e);
     alert('Ошибка поиска. Проверьте консоль.');
   }
 }
 
-// 👇 очень важно: экспортируем в глобальную область,
-// иначе onclick не найдёт функцию
+// Фолбэк-рендер, window.renderPosts
+function renderPublicFallback(posts) {
+  const box = document.getElementById('list-public');
+  if (!box) return;
+  box.innerHTML = posts.map(p => `
+    <article class="card bg-gray-900 border border-gray-800 rounded-2xl p-4">
+      <h3 class="text-lg font-semibold text-purple-400 mb-2">${escapeHtml(p.title || '')}</h3>
+      <p class="text-gray-200 mb-3">${escapeHtml(p.content || '')}</p>
+      <div class="flex flex-wrap gap-2">
+        ${(p.tags || []).map(t => `<span class="px-2 py-1 rounded-lg bg-gray-800 text-xs">${escapeHtml(t)}</span>`).join('')}
+      </div>
+    </article>
+  `).join('');
+}
+
+// Простая экранизация, чтобы не сломать верстку
+function escapeHtml(s) {
+  return String(s).replace(/[&<>"']/g, m => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m]));
+}
+
+// Сделать доступной из HTML-атрибута onclick
 window.searchByTag = searchByTag;
+
+// (не обязательно) запуск по Enter
+const tagInputEl = document.getElementById('searchTag');
+if (tagInputEl) {
+  tagInputEl.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter') {
+      e.preventDefault();
+      searchByTag();
+    }
+  });
+}
